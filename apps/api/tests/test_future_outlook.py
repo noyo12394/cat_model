@@ -59,6 +59,10 @@ def test_future_date_returns_only_a_published_track_point_or_an_explicit_unavail
     assert supported.items[0].coverage_status == "dated_track_point"
     assert supported.items[0].certainty_class == "official_forecast"
 
+    advisory_only = build_future_outlook(now + timedelta(hours=96), source, now=now)
+    assert advisory_only.items[0].coverage_status == "official_advisory"
+    assert advisory_only.items[0].selected_point_center is None
+
     unsupported = build_future_outlook(now + timedelta(days=30), source, now=now)
     assert unsupported.availability == "unavailable"
     assert not unsupported.items
