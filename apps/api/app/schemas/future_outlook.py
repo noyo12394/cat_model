@@ -18,10 +18,11 @@ class FutureForecastEvent(BaseModel):
     basin: str
     headline: str | None = None
     observed_at: datetime | None = None
-    forecast_valid_from: datetime
-    forecast_valid_to: datetime
-    selected_point_at: datetime
-    selected_point_center: tuple[float, float]
+    coverage_status: Literal["dated_track_point", "official_advisory"]
+    forecast_valid_from: datetime | None = None
+    forecast_valid_to: datetime | None = None
+    selected_point_at: datetime | None = None
+    selected_point_center: tuple[float, float] | None = None
     advisory_url: HttpUrl
     track_url: HttpUrl
     certainty_class: Literal["official_forecast"] = "official_forecast"
@@ -42,6 +43,6 @@ class FutureOutlookResponse(BaseModel):
     coverage: str = "Active named tropical cyclones in the Atlantic and eastern Pacific, up to five days when an official advisory track exists."
     limitations: list[str] = Field(default_factory=lambda: [
         "This is not a global all-hazard forecast: it does not predict earthquakes, floods, wildfires, or events that have not been issued by an authority.",
-        "Forecast positions come from the nearest published NHC advisory point and must be read with the official forecast cone and advisory text.",
+        "A map point appears only when the source supplies a dated forecast point; otherwise EarthPulse links to the official advisory without inferring a position.",
     ])
     error: str | None = None

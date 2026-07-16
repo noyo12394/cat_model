@@ -147,10 +147,11 @@ export interface FutureForecastEvent {
   basin: string;
   headline?: string | null;
   observed_at?: string | null;
-  forecast_valid_from: string;
-  forecast_valid_to: string;
-  selected_point_at: string;
-  selected_point_center: [number, number];
+  coverage_status: "dated_track_point" | "official_advisory";
+  forecast_valid_from?: string | null;
+  forecast_valid_to?: string | null;
+  selected_point_at?: string | null;
+  selected_point_center?: [number, number] | null;
   advisory_url: string;
   track_url: string;
   certainty_class: "official_forecast";

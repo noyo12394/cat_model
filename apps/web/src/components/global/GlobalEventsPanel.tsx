@@ -188,8 +188,8 @@ export function GlobalEventsPanel() {
                     {futureOutlook.data.items.map((item) => (
                       <article key={item.event_id}>
                         <span><MapPin size={13} /></span>
-                        <div><strong>{item.storm_type} {item.name}</strong><small>{item.basin} · official NHC forecast point valid {formatUtcShort(item.selected_point_at)}</small></div>
-                        <button type="button" onClick={() => flyTo(item.selected_point_center, 4.8)} aria-label={`Focus the official forecast position for ${item.name}`}><MapPin size={12} /> Map</button>
+                        <div><strong>{item.storm_type} {item.name}</strong><small>{item.coverage_status === "dated_track_point" && item.selected_point_at ? `${item.basin} · official NHC forecast point valid ${formatUtcShort(item.selected_point_at)}` : `${item.basin} · official NHC advisory available for this horizon`}</small></div>
+                        {item.selected_point_center && <button type="button" onClick={() => flyTo(item.selected_point_center!, 4.8)} aria-label={`Focus the official forecast position for ${item.name}`}><MapPin size={12} /> Map</button>}
                         <a href={item.advisory_url} target="_blank" rel="noreferrer" aria-label={`Open the official NHC advisory for ${item.name}`}><ExternalLink size={12} /></a>
                       </article>
                     ))}
