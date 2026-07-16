@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from app.adapters.gdacs import fetch_global_events
@@ -16,9 +16,11 @@ from app.schemas.event import Alert, HazardEvent, SensorObservation
 from app.schemas.global_event import GlobalEventCounts, GlobalEventsResponse
 from app.schemas.global_outlook import GlobalOutlookResponse
 from app.schemas.future_outlook import FutureOutlookResponse
+from app.schemas.weather_model_outlook import ModelWeatherOutlookResponse
 from app.services.compound_intelligence import build_compound_events
 from app.services.global_outlook import horizon_label, priority_for
 from app.services.future_outlook import build_future_outlook
+from app.services.weather_model_outlook import build_model_weather_outlook
 from app.services.source_health import get_source_health
 
 router = APIRouter(prefix="/live", tags=["live"])
@@ -105,6 +107,21 @@ async def get_future_outlook(target_at: datetime) -> FutureOutlookResponse:
     """
     tracks = await fetch_nhc_forecast_tracks()
     return build_future_outlook(target_at, tracks)
+
+
+@router.get("/model-weather-outlook", response_model=ModelWeatherOutlookResponse)
+async def get_model_weather_outlook(
+    target_at: datetime,
+    latitude: float = Query(ge=-90, le=90),
+    longitude: float = Query(ge=-180, le=180),
+    location_name: str = Query(default="Selected location", min_length=1, max_length=120),
+) -> ModelWeatherOutlookResponse:
+    """Return published model weather drivers for one explicit map location.
+
+    This endpoint is intentionally point-scoped: it does not turn a selected
+    future date into a claim that a new global disaster will happen.
+    """
+    return await build_model_weather_outlook(target_at, latitude, longitude, location_name)
 
 
 @router.get("/events", response_model=LiveEventsResponse)

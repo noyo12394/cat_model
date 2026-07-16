@@ -11,6 +11,7 @@ import type {
   LiveEventsResponse,
   GlobalEventsResponse,
   FutureOutlookResponse,
+  ModelWeatherOutlookResponse,
   GlobalOutlookResponse,
   LocationCapsule,
   ModelCard,
@@ -54,6 +55,9 @@ export const api = {
   globalEvents: () => request<GlobalEventsResponse>("/live/global-events"),
   globalOutlook: (horizonMinutes: number) => request<GlobalOutlookResponse>(`/live/global-outlook?horizon_minutes=${Math.max(0, Math.min(1440, Math.round(horizonMinutes)))}`),
   futureOutlook: (targetAt: string) => request<FutureOutlookResponse>(`/live/future-outlook?target_at=${encodeURIComponent(targetAt)}`),
+  modelWeatherOutlook: (targetAt: string, center: [number, number], locationName: string) => request<ModelWeatherOutlookResponse>(
+    `/live/model-weather-outlook?target_at=${encodeURIComponent(targetAt)}&latitude=${encodeURIComponent(center[1])}&longitude=${encodeURIComponent(center[0])}&location_name=${encodeURIComponent(locationName)}`,
+  ),
   multiHazardOverview: () => request<MultiHazardOverview>("/live/multi-hazard"),
 
   searchPlaces: (q: string) =>

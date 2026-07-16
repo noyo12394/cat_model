@@ -42,6 +42,17 @@ export function GlobalEventsPanel() {
     staleTime: 300_000,
     retry: 1,
   });
+  const selectedEvent = useMemo(
+    () => (query.data?.events ?? []).find((event) => event.event_id === selectedGlobalEventId) ?? null,
+    [query.data?.events, selectedGlobalEventId],
+  );
+  const modelWeatherOutlook = useQuery({
+    queryKey: ["model-weather-outlook", futureTargetAt, selectedEvent?.event_id],
+    queryFn: () => api.modelWeatherOutlook(futureTargetAt, selectedEvent!.center, `${selectedEvent!.name}, ${selectedEvent!.country}`),
+    enabled: Boolean(selectedEvent),
+    staleTime: 300_000,
+    retry: 1,
+  });
   const watchByEvent = useMemo(() => new Map((outlook.data?.items ?? []).map((item) => [item.event_id, item])), [outlook.data?.items]);
 
   const events = useMemo(() => {
@@ -49,10 +60,6 @@ export function GlobalEventsPanel() {
     const rank: Record<string, number> = { red: 0, orange: 1, green: 2 };
     return [...filtered].sort((a, b) => (rank[a.alert_level] ?? 3) - (rank[b.alert_level] ?? 3) || Date.parse(b.modified_at) - Date.parse(a.modified_at));
   }, [hazard, query.data?.events]);
-  const selectedEvent = useMemo(
-    () => (query.data?.events ?? []).find((event) => event.event_id === selectedGlobalEventId) ?? null,
-    [query.data?.events, selectedGlobalEventId],
-  );
   const selectedWatch = selectedEvent ? watchByEvent.get(selectedEvent.event_id) : undefined;
   const verificationQueue = useMemo(
     () => [...events].sort((a, b) => (watchByEvent.get(b.event_id)?.priority_score ?? 0) - (watchByEvent.get(a.event_id)?.priority_score ?? 0)).slice(0, 3),
@@ -165,39 +172,65 @@ export function GlobalEventsPanel() {
           <section className="future-explorer-card" aria-label="Future date explorer">
             <div className="future-explorer-heading">
               <span><CalendarDays size={15} /></span>
-              <div><span className="panel-kicker">FUTURE EXPLORER</span><h2>Official forecast coverage</h2></div>
-              <b>{futureOutlook.data?.availability ?? "checking"}</b>
+              <div><span className="panel-kicker">FUTURE EXPLORER</span><h2>Tracks + model conditions</h2></div>
+              <b data-unavailable={!selectedEvent ? true : undefined}>{selectedEvent ? (modelWeatherOutlook.data?.coverage_type ?? "checking") : "select event"}</b>
             </div>
-            <p>Choose a future UTC date. EarthPulse shows an event only when an authority has published a forecast for that date.</p>
+            <p>Choose a future UTC date. Published event tracks and weather-model conditions are separate: EarthPulse never creates a disaster event from a date alone.</p>
             <label className="future-date-field">
               <span>CHECK DATE</span>
               <input type="date" value={futureDate} onChange={(event) => setFutureDate(event.target.value)} aria-label="Future date to check in UTC" />
               <em>12:00 UTC</em>
             </label>
-            {futureOutlook.isLoading ? (
-              <div className="future-outlook-loading"><RefreshCw size={12} /> Checking published forecast products…</div>
-            ) : futureOutlook.isError || futureOutlook.data?.availability === "unavailable" ? (
-              <div className="future-outlook-unavailable">
-                <ShieldAlert size={15} /><div><strong>{futureOutlook.data?.availability_label ?? "Forecast coverage unavailable"}</strong><p>{futureOutlook.data?.availability_detail ?? "The forecast source could not be reached, so no future events are shown."}</p></div>
-              </div>
-            ) : futureOutlook.data && (
-              <>
-                <div className="future-outlook-summary"><strong>{futureOutlook.data.availability_label}</strong><span>{futureOutlook.data.availability_detail}</span></div>
-                {futureOutlook.data.items.length > 0 ? (
-                  <div className="future-track-list">
-                    {futureOutlook.data.items.map((item) => (
-                      <article key={item.event_id}>
-                        <span><MapPin size={13} /></span>
-                        <div><strong>{item.storm_type} {item.name}</strong><small>{item.coverage_status === "dated_track_point" && item.selected_point_at ? `${item.basin} · official NHC forecast point valid ${formatUtcShort(item.selected_point_at)}` : `${item.basin} · official NHC advisory available for this horizon`}</small></div>
-                        {item.selected_point_center && <button type="button" onClick={() => flyTo(item.selected_point_center!, 4.8)} aria-label={`Focus the official forecast position for ${item.name}`}><MapPin size={12} /> Map</button>}
-                        <a href={item.advisory_url} target="_blank" rel="noreferrer" aria-label={`Open the official NHC advisory for ${item.name}`}><ExternalLink size={12} /></a>
+            <div className="future-source-section">
+              <span className="future-source-label">PUBLISHED EVENT TRACKS</span>
+              {futureOutlook.isLoading ? (
+                <div className="future-outlook-loading"><RefreshCw size={12} /> Checking official track products…</div>
+              ) : futureOutlook.isError || futureOutlook.data?.availability === "unavailable" ? (
+                <div className="future-outlook-brief"><ShieldAlert size={13} /><div><strong>{futureOutlook.data?.availability_label ?? "Official track unavailable"}</strong><p>{futureOutlook.data?.availability_detail ?? "No official event tracks are shown."}</p></div></div>
+              ) : futureOutlook.data && (
+                <>
+                  <div className="future-outlook-summary"><strong>{futureOutlook.data.availability_label}</strong><span>{futureOutlook.data.availability_detail}</span></div>
+                  {futureOutlook.data.items.length > 0 ? (
+                    <div className="future-track-list">
+                      {futureOutlook.data.items.map((item) => (
+                        <article key={item.event_id}>
+                          <span><MapPin size={13} /></span>
+                          <div><strong>{item.storm_type} {item.name}</strong><small>{item.coverage_status === "dated_track_point" && item.selected_point_at ? `${item.basin} · official NHC forecast point valid ${formatUtcShort(item.selected_point_at)}` : `${item.basin} · official NHC advisory available for this horizon`}</small></div>
+                          {item.selected_point_center && <button type="button" onClick={() => flyTo(item.selected_point_center!, 4.8)} aria-label={`Focus the official forecast position for ${item.name}`}><MapPin size={12} /> Map</button>}
+                          <a href={item.advisory_url} target="_blank" rel="noreferrer" aria-label={`Open the official NHC advisory for ${item.name}`}><ExternalLink size={12} /></a>
+                        </article>
+                      ))}
+                    </div>
+                  ) : <div className="future-outlook-empty">No named tropical cyclone has an official forecast point covering this date.</div>}
+                  <small className="future-source-note">{futureOutlook.data.coverage} Source: <a href={futureOutlook.data.source_url} target="_blank" rel="noreferrer">{futureOutlook.data.attribution}</a>.</small>
+                </>
+              )}
+            </div>
+
+            <div className="future-source-section model-weather-section">
+              <div className="model-weather-heading"><BrainCircuit size={13} /><span className="future-source-label">MODEL WEATHER AT SELECTED EVENT</span></div>
+              {!selectedEvent ? (
+                <div className="future-outlook-empty">Tap a map symbol or event row to query real model conditions at that location. A worldwide model output without a chosen place would not be meaningful.</div>
+              ) : modelWeatherOutlook.isLoading ? (
+                <div className="future-outlook-loading"><RefreshCw size={12} /> Reading the latest model run for {selectedEvent.name}…</div>
+              ) : modelWeatherOutlook.isError || modelWeatherOutlook.data?.availability === "unavailable" ? (
+                <div className="future-outlook-brief"><ShieldAlert size={13} /><div><strong>{modelWeatherOutlook.data?.availability_label ?? "Model guidance unavailable"}</strong><p>{modelWeatherOutlook.data?.availability_detail ?? "No model guidance is shown for this place and date."}</p></div></div>
+              ) : modelWeatherOutlook.data && (
+                <>
+                  <div className="future-outlook-summary"><strong>{modelWeatherOutlook.data.availability_label} · {modelWeatherOutlook.data.model_name}</strong><span>{modelWeatherOutlook.data.location_name}</span></div>
+                  <div className="model-weather-metrics" aria-label={`Model weather conditions for ${modelWeatherOutlook.data.location_name}`}>
+                    {modelWeatherOutlook.data.metrics.map((metric) => (
+                      <article key={metric.key}>
+                        <span>{metric.label}</span><strong>{formatModelMetric(metric.value, metric.unit)}</strong>
+                        {metric.range_low !== null && metric.range_low !== undefined && metric.range_high !== null && metric.range_high !== undefined && <small>range {formatModelMetric(metric.range_low, metric.unit)}–{formatModelMetric(metric.range_high, metric.unit)}</small>}
                       </article>
                     ))}
                   </div>
-                ) : <div className="future-outlook-empty">No named tropical cyclone has an official forecast point covering this date.</div>}
-                <small className="future-source-note">{futureOutlook.data.coverage} Source: <a href={futureOutlook.data.source_url} target="_blank" rel="noreferrer">{futureOutlook.data.attribution}</a>.</small>
-              </>
-            )}
+                  <p className="model-weather-note">{modelWeatherOutlook.data.reliability_note}</p>
+                  <small className="future-source-note">Source: <a href={modelWeatherOutlook.data.source_url} target="_blank" rel="noreferrer">{modelWeatherOutlook.data.provider} model documentation</a>.</small>
+                </>
+              )}
+            </div>
           </section>
 
           <section className="global-outlook-card" aria-label="EarthPulse global watch lens">
@@ -305,4 +338,8 @@ function ageLabel(value: string) {
 
 function dateInputValue(date: Date) {
   return date.toISOString().slice(0, 10);
+}
+
+function formatModelMetric(value: number, unit: string) {
+  return `${Number.isInteger(value) ? value : value.toFixed(1)} ${unit}`;
 }

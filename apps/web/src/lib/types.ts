@@ -174,6 +174,36 @@ export interface FutureOutlookResponse {
   error?: string | null;
 }
 
+export interface ModelWeatherMetric {
+  key: string;
+  label: string;
+  value: number;
+  unit: string;
+  range_low?: number | null;
+  range_high?: number | null;
+  detail?: string | null;
+}
+
+export interface ModelWeatherOutlookResponse {
+  target_at: string;
+  horizon_hours: number;
+  availability: "available" | "unavailable";
+  availability_label: string;
+  availability_detail: string;
+  coverage_type: "short_range_ml" | "short_range_numerical" | "seasonal_ensemble" | "unavailable";
+  location_name: string;
+  center: [number, number];
+  provider: string;
+  model_name?: string | null;
+  source_url: string;
+  generated_at: string;
+  data_status: DataStatus;
+  metrics: ModelWeatherMetric[];
+  reliability_note: string;
+  limitations: string[];
+  error?: string | null;
+}
+
 export interface PlaceSearchResult {
   place_id: string;
   name: string;
