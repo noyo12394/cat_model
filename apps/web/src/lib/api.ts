@@ -1,5 +1,6 @@
 import type {
   AssistantAnswer,
+  AssistantContext,
   CascadeResult,
   EvidenceTrail,
   HiddenRisk,
@@ -87,8 +88,8 @@ export const api = {
   getScenarioResults: (scenarioId: string) =>
     request<ScenarioResult>(`/scenarios/${scenarioId}/results`),
 
-  queryAssistant: (question: string) =>
-    request<AssistantAnswer>("/assistant/query", { method: "POST", body: JSON.stringify({ question }) }),
+  queryAssistant: (question: string, context?: AssistantContext) =>
+    request<AssistantAnswer>("/assistant/query", { method: "POST", body: JSON.stringify({ question, context }) }),
 
   sourceStatus: () => request<SourceStatus[]>("/sources/status"),
   listModels: () => request<ModelCard[]>("/models"),

@@ -23,7 +23,7 @@ import httpx
 from app.core.config import Settings
 from app.adapters.gdacs import fetch_global_events
 from app.db.memory_repository import MemoryRepository
-from app.schemas.assistant import AssistantAnswer, AssistantSource, AssistantToolCall, MapAction
+from app.schemas.assistant import AssistantAnswer, AssistantContext, AssistantSource, AssistantToolCall, MapAction
 from app.schemas.common import TimeRange
 from app.schemas.enums import Confidence
 from app.services.find_hidden_risks import find_hidden_risks
@@ -82,14 +82,47 @@ def answer_question(repo: MemoryRepository, settings: Settings, question: str) -
     return result
 
 
-async def answer_question_async(repo: MemoryRepository, settings: Settings, question: str) -> AssistantAnswer:
-    """Ground global questions in the live GDACS feed before any AI phrasing."""
+GLOBAL_QUERY_TERMS = ("global", "gdacs", "worldwide", "world", "international")
+GLOBAL_HAZARD_TYPES = {
+    "earthquake": "EQ",
+    "earthquakes": "EQ",
+    "quake": "EQ",
+    "quakes": "EQ",
+    "cyclone": "TC",
+    "hurricane": "TC",
+    "typhoon": "TC",
+    "flood": "FL",
+    "flooding": "FL",
+    "wildfire": "WF",
+    "wildfires": "WF",
+    "fire": "WF",
+    "fires": "WF",
+    "volcano": "VO",
+    "volcanic": "VO",
+    "drought": "DR",
+}
+
+
+async def answer_question_async(
+    repo: MemoryRepository,
+    settings: Settings,
+    question: str,
+    *,
+    context: AssistantContext | None = None,
+) -> AssistantAnswer:
+    """Ground global questions in the live GDACS feed before any AI phrasing.
+
+    The operator's current workspace is an evidence input. It takes precedence
+    over keyword guessing so a plain-language question such as "five places
+    with most earthquake risk" is interpreted against the global event feed
+    when the user is working in the global view.
+    """
     q = question.lower()
-    if not any(token in q for token in ("global", "gdacs", "worldwide", "world", "international")):
+    if not (context and context.scope == "global") and not any(token in q for token in GLOBAL_QUERY_TERMS):
         return answer_question(repo, settings, question)
 
     now = datetime.now(timezone.utc)
-    horizon = _requested_horizon(q)
+    horizon = context.horizon_minutes if context and context.horizon_minutes is not None else _requested_horizon(q)
     feed = await fetch_global_events(settings)
     if not feed.items:
         result = AssistantAnswer(
@@ -105,23 +138,50 @@ async def answer_question_async(repo: MemoryRepository, settings: Settings, ques
         )
     else:
         watch_items = sorted((priority_for(event, horizon, now=now) for event in feed.items), key=lambda item: -item.priority_score)
-        selected = next(
-            (
-                item for item in watch_items
-                if item.name.lower() in q or (len(item.country) > 3 and item.country.lower() in q)
-            ),
-            None,
-        )
-        top = [selected] if selected else watch_items[:3]
-        top_text = "; ".join(
-            f"{item.priority_label}: {item.name} ({item.alert_level} alert, watch score {item.priority_score}/100)"
-            for item in top
-        )
-        result = AssistantAnswer(
-            answer=(
+        selected = _selected_global_event(watch_items, q, context)
+        hazard_type = _global_hazard_type(q)
+        requested_count = _requested_global_list_count(q)
+        matching = [item for item in watch_items if not hazard_type or item.event_type == hazard_type]
+
+        if requested_count and hazard_type:
+            limited = matching[:requested_count]
+            hazard_label = _global_hazard_label(hazard_type)
+            if limited:
+                locations = "; ".join(
+                    f"{index}. {item.name} — {item.country} ({item.alert_level} alert, watch score {item.priority_score}/100)"
+                    for index, item in enumerate(limited, start=1)
+                )
+                answer_text = (
+                    f"EarthPulse does not yet have a global place-risk or exposure model, so it cannot claim these are the {requested_count} places at greatest {hazard_label.lower()} risk. "
+                    f"It can list the {len(limited)} current {hazard_label.lower()} event locations reported by GDACS, ordered for verification using published alert level, GDACS score, and source freshness: {locations}. "
+                    "This is an event triage list, not a population-risk ranking or a forecast."
+                )
+            else:
+                answer_text = (
+                    f"The live GDACS feed currently has no {hazard_label.lower()} events to list. EarthPulse therefore cannot produce a global {hazard_label.lower()} risk ranking from this feed."
+                )
+        elif selected:
+            answer_text = (
+                f"For the {horizon_label(horizon).lower()} operating window, {selected.name} in {selected.country} is an official GDACS {selected.alert_level} alert with a published score of "
+                f"{selected.alert_score if selected.alert_score is not None else 'unavailable'} and an EarthPulse watch priority of {selected.priority_score}/100. "
+                f"The next step is: {selected.next_action} This score ranks verification attention from published alert metadata and freshness; it does not predict impact probability or hazard evolution."
+            )
+        else:
+            top = matching[:3] if hazard_type else watch_items[:3]
+            top_text = "; ".join(
+                f"{item.priority_label}: {item.name} ({item.alert_level} alert, watch score {item.priority_score}/100)"
+                for item in top
+            ) or "no matching current events"
+            answer_text = (
                 f"For the {horizon_label(horizon).lower()} operating window, the live GDACS feed has {len(feed.items)} active events. "
-                f"{'The selected event is' if selected else 'The highest verification priorities are'} {top_text}. These watch scores rank analyst attention from published alert level, GDACS score, and update freshness; they do not predict hazard evolution or impact probability."
-            ),
+                f"The highest verification priorities are {top_text}. These watch scores rank analyst attention from published alert level, GDACS score, and update freshness; they do not predict hazard evolution or impact probability."
+            )
+
+        actions = [MapAction(action="open_global_events")]
+        if selected:
+            actions.append(MapAction(action="focus_global_event", target_id=selected.event_id))
+        result = AssistantAnswer(
+            answer=answer_text,
             time_range=TimeRange(start=now, label=f"GDACS {horizon_label(horizon)}"),
             location_label="Global operating picture",
             sources=[AssistantSource(label="Global Disaster Awareness and Coordination System, GDACS", url="https://www.gdacs.org/")],
@@ -134,12 +194,14 @@ async def answer_question_async(repo: MemoryRepository, settings: Settings, ques
                 "GDACS impact information is indicative and should be cross-checked with national authorities.",
                 "The global view does not yet contain location-specific weather, hydrology, exposure, or route models for every event.",
             ],
+            map_actions=actions,
             tool_trace=[
                 AssistantToolCall(tool="gdacs_global_event_intake", summary=f"Read {len(feed.items)} current events from the official GDACS API."),
+                AssistantToolCall(tool="global_event_scope", summary=(f"Applied the visible global workspace context{f' and { _global_hazard_label(hazard_type).lower()} filter' if hazard_type else ''}.")),
                 AssistantToolCall(tool="transparent_watch_priority", summary="Ranked event verification using alert level, published GDACS score, and source-update freshness."),
                 AssistantToolCall(tool="forecast_guardrail", summary="Did not project hazard evolution because no event-specific forecast model was available."),
             ],
-            suggested_questions=["Which global events should we verify first?", "Give a global brief for the next 6 hours", "Show the regional compound event"],
+            suggested_questions=["List five current earthquake event locations", "Which global events should we verify first?", "Give a global brief for the next 6 hours"],
             generated_at=now,
         )
 
@@ -147,6 +209,40 @@ async def answer_question_async(repo: MemoryRepository, settings: Settings, ques
     result.answer = polished_text
     result.prose_source = prose_source
     return result
+
+
+def _global_hazard_type(question: str) -> str | None:
+    """Return the first stated GDACS event class, if any."""
+    for token, event_type in GLOBAL_HAZARD_TYPES.items():
+        if re.search(rf"\b{re.escape(token)}\b", question):
+            return event_type
+    return None
+
+
+def _global_hazard_label(event_type: str) -> str:
+    return {"EQ": "Earthquake", "TC": "Cyclone", "FL": "Flood", "WF": "Wildfire", "VO": "Volcano", "DR": "Drought"}.get(event_type, event_type)
+
+
+def _requested_global_list_count(question: str) -> int | None:
+    """Interpret a small, explicit list request without inventing a ranking."""
+    numeric = re.search(r"\b(?:top|list|show|give|which)?\s*(\d{1,2})\s+(?:places|locations|events)\b", question)
+    if numeric:
+        return min(10, max(1, int(numeric.group(1))))
+    words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+    for word, count in words.items():
+        if re.search(rf"\b{word}\s+(?:places|locations|events)\b", question):
+            return count
+    if any(phrase in question for phrase in ("most risk", "highest risk", "top", "list current", "show current")):
+        return 5
+    return None
+
+
+def _selected_global_event(watch_items, question: str, context: AssistantContext | None):
+    if context and context.selected_global_event_id:
+        matched = next((item for item in watch_items if item.event_id == context.selected_global_event_id), None)
+        if matched:
+            return matched
+    return next((item for item in watch_items if item.name.lower() in question), None)
 
 
 def _requested_horizon(question: str) -> int:

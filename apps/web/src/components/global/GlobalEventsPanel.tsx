@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BrainCircuit, Check, ClipboardCheck, Copy, Download, ExternalLink, Globe2, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowUpRight, BrainCircuit, Check, ClipboardCheck, Copy, Download, ExternalLink, Globe2, ListChecks, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import type { GlobalEvent } from "@/lib/types";
@@ -46,12 +46,22 @@ export function GlobalEventsPanel() {
     [query.data?.events, selectedGlobalEventId],
   );
   const selectedWatch = selectedEvent ? watchByEvent.get(selectedEvent.event_id) : undefined;
+  const verificationQueue = useMemo(
+    () => [...events].sort((a, b) => (watchByEvent.get(b.event_id)?.priority_score ?? 0) - (watchByEvent.get(a.event_id)?.priority_score ?? 0)).slice(0, 3),
+    [events, watchByEvent],
+  );
+  const activeWatchCount = useMemo(
+    () => [...watchByEvent.values()].filter((item) => item.priority_score >= 55).length,
+    [watchByEvent],
+  );
 
   const focus = (event: GlobalEvent) => {
     setMapScope("global");
     selectGlobalEvent(event.event_id);
     flyTo(event.center, event.event_type === "TC" || event.event_type === "FL" ? 4 : 5);
   };
+
+  const askGlobal = (prompt: string) => setPanel({ kind: "assistant", question: prompt });
 
   const download = () => {
     if (!query.data) return;
@@ -117,6 +127,31 @@ export function GlobalEventsPanel() {
             <div className="red"><span>RED</span><strong>{query.data.counts.red}</strong><small>potentially severe</small></div>
             <div className="orange"><span>ORANGE</span><strong>{query.data.counts.orange}</strong><small>significant</small></div>
             <div className="green"><span>GREEN</span><strong>{query.data.counts.green}</strong><small>information</small></div>
+          </section>
+
+          <section className="global-decision-board" aria-label="Global verification queue">
+            <div className="decision-board-heading">
+              <span><ListChecks size={15} /></span>
+              <div><span className="panel-kicker">WHAT TO DO NEXT</span><h2>Verification queue</h2></div>
+              <b>{activeWatchCount} ACTIVE</b>
+            </div>
+            <p>Start with the highest published GDACS alert metadata. This is a coordination queue—not a prediction of where harm will occur.</p>
+            <div className="verification-queue">
+              {verificationQueue.map((event, index) => {
+                const watch = watchByEvent.get(event.event_id);
+                return (
+                  <button key={event.event_id} type="button" onClick={() => focus(event)}>
+                    <span>{index + 1}</span>
+                    <div><strong>{event.name}</strong><small>{event.country} · {event.alert_level} alert · {watch?.priority_score ?? "—"}/100 watch</small></div>
+                    <ArrowUpRight size={14} aria-hidden />
+                  </button>
+                );
+              })}
+            </div>
+            <div className="decision-board-actions">
+              <button type="button" onClick={() => askGlobal("List five current earthquake event locations. Do not call it a risk ranking; explain the source and limits.")}><Sparkles size={12} /> Earthquake locations</button>
+              <button type="button" onClick={() => askGlobal(`Give a global GDACS brief for a ${horizonMinutes}-minute operating window. Explain what should be verified first and the limits of the watch score.`)}><Sparkles size={12} /> Explain queue</button>
+            </div>
           </section>
 
           <section className="global-outlook-card" aria-label="EarthPulse global watch lens">

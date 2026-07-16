@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -10,8 +11,21 @@ from app.schemas.common import TimeRange
 from app.schemas.enums import Confidence
 
 
+class AssistantContext(BaseModel):
+    """The visible workspace context supplied by the client.
+
+    Keeping this explicit prevents the assistant from silently answering a
+    regional demo question while the operator is looking at the global feed.
+    """
+
+    scope: Literal["regional", "global"] = "regional"
+    selected_global_event_id: str | None = Field(default=None, max_length=120)
+    horizon_minutes: int | None = Field(default=None, ge=0, le=1440)
+
+
 class AssistantQuery(BaseModel):
     question: str = Field(min_length=1, max_length=500)
+    context: AssistantContext | None = None
 
 
 class AssistantSource(BaseModel):

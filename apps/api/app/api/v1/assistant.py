@@ -17,4 +17,4 @@ async def query(
     repo: MemoryRepository = Depends(repo_dep),
     settings: Settings = Depends(settings_dep),
 ) -> AssistantAnswer:
-    return await answer_question_async(repo, settings, body.question)
+    return await answer_question_async(repo, settings, body.question, context=body.context)

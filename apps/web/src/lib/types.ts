@@ -403,6 +403,12 @@ export interface AssistantSource {
   url?: string | null;
 }
 
+export interface AssistantContext {
+  scope: "regional" | "global";
+  selected_global_event_id?: string | null;
+  horizon_minutes?: number | null;
+}
+
 export interface MapAction {
   action: string;
   target_id?: string | null;

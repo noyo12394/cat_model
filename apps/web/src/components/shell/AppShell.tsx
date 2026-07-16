@@ -53,10 +53,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             className="ask-earthpulse-button"
-            onClick={() => setPanel({ kind: "assistant", question: "Explain the compound event and what we should check next" })}
+            onClick={() => setPanel({
+              kind: "assistant",
+              question: mapScope === "global"
+                ? "Give a global GDACS brief for the current operating window. Explain what should be verified first and the limits of the watch score."
+                : "Explain the compound event and what we should check next",
+            })}
           >
             <Bot size={17} aria-hidden />
-            <span><strong>Ask EarthPulse</strong><small>Grounded agent</small></span>
+            <span><strong>Ask EarthPulse</strong><small>{mapScope === "global" ? "Live global events" : "Grounded agent"}</small></span>
           </button>
 
           <aside

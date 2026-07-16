@@ -4,8 +4,9 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Bot, CheckCircle2, Database, Send, ShieldCheck, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
-import type { AssistantAnswer } from "@/lib/types";
+import type { AssistantAnswer, AssistantContext } from "@/lib/types";
 import { ConfidencePill } from "@/components/common/Badges";
+import { useAppStore } from "@/lib/store";
 
 type ChatMessage =
   | { id: number; role: "user"; text: string }
@@ -19,9 +20,17 @@ export function AssistantPanel({ question }: { question: string }) {
   const [input, setInput] = useState("");
   const askedInitial = useRef("");
   const nextId = useRef(1);
+  const mapScope = useAppStore((state) => state.mapScope);
+  const selectedGlobalEventId = useAppStore((state) => state.selectedGlobalEventId);
+  const time = useAppStore((state) => state.time);
+  const setMapScope = useAppStore((state) => state.setMapScope);
+  const setPanel = useAppStore((state) => state.setPanel);
+  const selectGlobalEvent = useAppStore((state) => state.selectGlobalEvent);
+  const flyTo = useAppStore((state) => state.flyTo);
+  const isGlobal = mapScope === "global";
 
   const mutation = useMutation({
-    mutationFn: (prompt: string) => api.queryAssistant(prompt),
+    mutationFn: ({ prompt, context }: { prompt: string; context: AssistantContext }) => api.queryAssistant(prompt, context),
     onSuccess: (result) => {
       setMessages((current) => [...current, { id: nextId.current++, role: "assistant", text: result.answer, result }]);
     },
@@ -32,7 +41,21 @@ export function AssistantPanel({ question }: { question: string }) {
     if (!clean || mutation.isPending) return;
     setMessages((current) => [...current, { id: nextId.current++, role: "user", text: clean }]);
     setInput("");
-    mutation.mutate(clean);
+    mutation.mutate({
+      prompt: clean,
+      context: {
+        scope: isGlobal ? "global" : "regional",
+        selected_global_event_id: isGlobal ? selectedGlobalEventId : null,
+        horizon_minutes: Math.max(0, time.offsetMinutes),
+      },
+    });
+  };
+
+  const openGlobalQueue = (eventId?: string | null) => {
+    setMapScope("global");
+    if (eventId) selectGlobalEvent(eventId);
+    flyTo([8, 18], 1.45);
+    setPanel({ kind: "global-events" });
   };
 
   useEffect(() => {
@@ -56,7 +79,7 @@ export function AssistantPanel({ question }: { question: string }) {
         <span className="agent-avatar" aria-hidden><Bot size={18} /></span>
         <div>
           <strong>Ask EarthPulse</strong>
-          <span>Grounded compound-hazard navigator</span>
+          <span>{isGlobal ? "Grounded global-event navigator" : "Grounded compound-hazard navigator"}</span>
         </div>
         <span className={`agent-provider ${latest?.result.prose_source === "groq-grounded" ? "is-live" : ""}`}>
           {latest?.result.prose_source === "groq-grounded" ? "Groq active" : "Grounded mode"}
@@ -83,6 +106,16 @@ export function AssistantPanel({ question }: { question: string }) {
               {message.result.location_label && <span>{message.result.location_label}</span>}
             </div>
 
+            {message.result.map_actions.some((action) => action.action === "open_global_events") && (
+              <button
+                type="button"
+                className="agent-map-action"
+                onClick={() => openGlobalQueue(message.result.map_actions.find((action) => action.action === "focus_global_event")?.target_id)}
+              >
+                Open source-backed global events
+              </button>
+            )}
+
             {message.result.tool_trace.length > 0 && (
               <details className="agent-trace" open>
                 <summary><Sparkles size={13} /> Tool trace</summary>
@@ -108,14 +141,16 @@ export function AssistantPanel({ question }: { question: string }) {
       </div>
 
       <div className="agent-suggestions" aria-label="Suggested questions">
-        {(latest?.result.suggested_questions ?? ["Show the compound event", "What should we check next?"]).slice(0, 3).map((suggestion) => (
+        {(latest?.result.suggested_questions ?? (isGlobal
+          ? ["List five current earthquake event locations", "Which events should we verify first?", "Explain the watch score"]
+          : ["Show the compound event", "What should we check next?"])).slice(0, 3).map((suggestion) => (
           <button type="button" key={suggestion} onClick={() => ask(suggestion)} disabled={mutation.isPending}>{suggestion}</button>
         ))}
       </div>
 
       <form className="agent-composer" onSubmit={submit}>
         <label className="sr-only" htmlFor="earthpulse-agent-input">Ask EarthPulse</label>
-        <input id="earthpulse-agent-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Ask about evidence, routes, or possible futures…" maxLength={500} />
+        <input id="earthpulse-agent-input" value={input} onChange={(event) => setInput(event.target.value)} placeholder={isGlobal ? "Ask about live events, locations, or verification…" : "Ask about evidence, routes, or possible futures…"} maxLength={500} />
         <button type="submit" disabled={!input.trim() || mutation.isPending} aria-label="Send question"><Send size={16} /></button>
       </form>
     </div>
