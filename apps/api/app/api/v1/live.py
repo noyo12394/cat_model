@@ -5,9 +5,18 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app.api.deps import repo_dep
+from app.adapters.gdacs import fetch_global_events
+from app.api.deps import repo_dep, settings_dep
+from app.core.config import Settings
 from app.db.memory_repository import MemoryRepository
+from app.schemas.compound import MultiHazardOverview
+from app.schemas.enums import DataStatus
 from app.schemas.event import Alert, HazardEvent, SensorObservation
+from app.schemas.global_event import GlobalEventCounts, GlobalEventsResponse
+from app.schemas.global_outlook import GlobalOutlookResponse
+from app.services.compound_intelligence import build_compound_events
+from app.services.global_outlook import horizon_label, priority_for
+from app.services.source_health import get_source_health
 
 router = APIRouter(prefix="/live", tags=["live"])
 
@@ -27,6 +36,60 @@ class RegionSummary(BaseModel):
     headline: str
     generated_at: datetime
     is_demo: bool = True
+
+
+@router.get("/global-events", response_model=GlobalEventsResponse)
+async def get_global_events(settings: Settings = Depends(settings_dep)) -> GlobalEventsResponse:
+    response = await fetch_global_events(settings)
+    events = response.items
+    levels = [event.alert_level for event in events]
+    latest = max((event.modified_at for event in events), default=None)
+    age_seconds = (datetime.now(timezone.utc) - latest).total_seconds() if latest else None
+    return GlobalEventsResponse(
+        events=events,
+        counts=GlobalEventCounts(
+            total=len(events),
+            red=levels.count("red"),
+            orange=levels.count("orange"),
+            green=levels.count("green"),
+        ),
+        fetched_at=response.retrieved_at,
+        source_updated_at=latest,
+        data_status=response.status,
+        stale=response.status == DataStatus.STALE or (age_seconds is not None and age_seconds > 86400),
+        error=response.note if response.status == DataStatus.UNAVAILABLE else None,
+    )
+
+
+@router.get("/global-outlook", response_model=GlobalOutlookResponse)
+async def get_global_outlook(
+    horizon_minutes: int = 15,
+    settings: Settings = Depends(settings_dep),
+) -> GlobalOutlookResponse:
+    """Return a transparent short-horizon verification queue for live GDACS events."""
+    horizon_minutes = max(0, min(horizon_minutes, 1440))
+    response = await fetch_global_events(settings)
+    now = datetime.now(timezone.utc)
+    if response.status == DataStatus.UNAVAILABLE:
+        return GlobalOutlookResponse(
+            horizon_minutes=horizon_minutes,
+            horizon_label=horizon_label(horizon_minutes),
+            generated_at=now,
+            data_status=response.status,
+            error=response.note,
+        )
+    items = sorted(
+        (priority_for(event, horizon_minutes, now=now) for event in response.items),
+        key=lambda item: (-item.priority_score, item.name),
+    )
+    return GlobalOutlookResponse(
+        horizon_minutes=horizon_minutes,
+        horizon_label=horizon_label(horizon_minutes),
+        generated_at=now,
+        data_status=response.status,
+        source_updated_at=max((event.modified_at for event in response.items), default=None),
+        items=items,
+    )
 
 
 @router.get("/events", response_model=LiveEventsResponse)
@@ -57,4 +120,23 @@ def get_live_summary(repo: MemoryRepository = Depends(repo_dep)) -> RegionSummar
         rising_gauge_count=len(rising),
         headline=headline,
         generated_at=datetime.now(timezone.utc),
+    )
+
+
+@router.get("/multi-hazard", response_model=MultiHazardOverview)
+async def get_multi_hazard_overview(
+    repo: MemoryRepository = Depends(repo_dep),
+    settings: Settings = Depends(settings_dep),
+) -> MultiHazardOverview:
+    source_status = await get_source_health(settings)
+    return MultiHazardOverview(
+        generated_at=datetime.now(timezone.utc),
+        live_feed_count=sum(item.status == DataStatus.LIVE for item in source_status),
+        demo_feed_count=sum(item.status == DataStatus.DEMO for item in source_status),
+        unavailable_feed_count=sum(item.status == DataStatus.UNAVAILABLE for item in source_status),
+        compound_events=build_compound_events(repo),
+        research_notice=(
+            "Research preview: evidence agreement, possible-futures branching, and verification priorities "
+            "are decision-support prototypes, not operational emergency products."
+        ),
     )

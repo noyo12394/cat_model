@@ -10,6 +10,9 @@ backs each endpoint's data, and `apps/api/app/schemas/` for the exact response s
 | Endpoint | Method | Purpose |
 |---|---|---|
 | `/live/events` | GET | Raw current events/alerts/sensors feed |
+| `/live/global-events` | GET | Normalized live GDACS global multi-hazard event feed with alert levels, provenance and freshness |
+| `/live/global-outlook?horizon_minutes=0..1440` | GET | Transparent global verification-priority queue derived from current GDACS alert level, score and freshness; explicitly not a physical hazard forecast |
+| `/live/multi-hazard` | GET | Research-demo compound-event fusion, evidence agreement and possible futures |
 | `/live/summary` | GET | Regional summary (default right-panel content) |
 | `/places/search?q=` | GET | Place/facility search (powers the top search bar) |
 | `/places/{place_id}` | GET | Basic place record |

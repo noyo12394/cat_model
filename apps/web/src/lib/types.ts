@@ -73,6 +73,72 @@ export interface RegionSummary {
   is_demo: boolean;
 }
 
+export interface GlobalEvent {
+  event_id: string;
+  event_type: string;
+  name: string;
+  country: string;
+  alert_level: "green" | "orange" | "red" | string;
+  alert_score?: number | null;
+  severity_text: string;
+  from_date: string;
+  to_date: string;
+  modified_at: string;
+  center: [number, number];
+  source: string;
+  report_url: string;
+  geometry_url?: string | null;
+  is_current: boolean;
+  data_status: DataStatus;
+}
+
+export interface GlobalEventsResponse {
+  events: GlobalEvent[];
+  counts: { total: number; red: number; orange: number; green: number };
+  fetched_at: string;
+  source_updated_at?: string | null;
+  source_name: string;
+  source_url: string;
+  attribution: string;
+  standards: string[];
+  data_status: DataStatus;
+  stale: boolean;
+  notice: string;
+  error?: string | null;
+}
+
+export interface GlobalWatchItem {
+  event_id: string;
+  name: string;
+  event_type: string;
+  country: string;
+  center: [number, number];
+  alert_level: "green" | "orange" | "red" | string;
+  alert_score?: number | null;
+  modified_at: string;
+  priority_score: number;
+  priority_label: string;
+  drivers: string[];
+  next_action: string;
+  report_url: string;
+}
+
+export interface GlobalOutlookResponse {
+  horizon_minutes: number;
+  horizon_label: string;
+  generated_at: string;
+  data_status: DataStatus;
+  source_updated_at?: string | null;
+  method: string;
+  method_detail: string;
+  items: GlobalWatchItem[];
+  source_name: string;
+  source_url: string;
+  attribution: string;
+  limitations: string[];
+  error?: string | null;
+}
+
 export interface PlaceSearchResult {
   place_id: string;
   name: string;
@@ -342,6 +408,12 @@ export interface MapAction {
   target_id?: string | null;
 }
 
+export interface AssistantToolCall {
+  tool: string;
+  status: string;
+  summary: string;
+}
+
 export interface AssistantAnswer {
   answer: string;
   time_range: TimeRange;
@@ -351,6 +423,8 @@ export interface AssistantAnswer {
   confidence: Confidence;
   limitations: string[];
   map_actions: MapAction[];
+  tool_trace: AssistantToolCall[];
+  suggested_questions: string[];
   generated_at: string;
   prose_source: string;
 }
@@ -418,6 +492,82 @@ export interface LiveEventsResponse {
   alerts: Alert[];
   sensors: SensorObservation[];
   generated_at: string;
+}
+
+export interface HazardSignalSummary {
+  signal_id: string;
+  hazard_type: string;
+  label: string;
+  source: string;
+  source_url?: string | null;
+  data_status: DataStatus;
+  certainty: CertaintyClass;
+  severity: Severity;
+  center: [number, number];
+  observed_at: string;
+  detail: string;
+}
+
+export interface ConsequenceStep {
+  step_id: string;
+  label: string;
+  detail: string;
+  certainty: CertaintyClass;
+  confidence: Confidence;
+  time_window: string;
+}
+
+export interface EvidenceChannel {
+  channel: string;
+  agreement: "supports" | "partial" | "conflicts" | "unavailable";
+  detail: string;
+  data_status: DataStatus;
+}
+
+export interface PossibleFuture {
+  future_id: string;
+  label: string;
+  support: "most_supported" | "plausible" | "stress_case";
+  detail: string;
+  consequence: string;
+  distinguishing_signal: string;
+}
+
+export interface VerificationPriority {
+  rank: number;
+  label: string;
+  why: string;
+  expected_value: string;
+  action: string;
+}
+
+export interface CompoundEventSummary {
+  event_id: string;
+  title: string;
+  region_label: string;
+  status: string;
+  center: [number, number];
+  hazards: string[];
+  data_status: DataStatus;
+  is_demo: boolean;
+  fusion_confidence: Confidence;
+  fusion_explanation: string;
+  matched_on: string[];
+  signals: HazardSignalSummary[];
+  consequence_chain: ConsequenceStep[];
+  possible_futures: PossibleFuture[];
+  evidence_agreement: EvidenceChannel[];
+  next_checks: VerificationPriority[];
+  limitations: string[];
+}
+
+export interface MultiHazardOverview {
+  generated_at: string;
+  live_feed_count: number;
+  demo_feed_count: number;
+  unavailable_feed_count: number;
+  compound_events: CompoundEventSummary[];
+  research_notice: string;
 }
 
 export type Mode = "live" | "replay";

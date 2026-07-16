@@ -101,6 +101,7 @@ class OperationalState(str, Enum):
 
 
 class SourceName(str, Enum):
+    GDACS = "GDACS"
     NWS = "NWS"
     USGS_WATER = "USGS_WATER"
     USGS_QUAKE = "USGS_QUAKE"

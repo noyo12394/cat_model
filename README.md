@@ -1,11 +1,11 @@
 # EarthPulse
 
-A live intelligence platform for hazards, infrastructure and community impacts. Map-first
+A global and local intelligence platform for hazards, infrastructure and community impacts. Map-first
 situational awareness that connects a developing hazard to real places, routes, and
 infrastructure dependencies - while keeping every AI conclusion traceable to evidence.
 
 This repository is the first functioning build: a working FastAPI backend and Next.js
-frontend, seeded with one polished demonstration scenario (a developing flood near
+frontend, connected to the live GDACS global event feed and seeded with one polished demonstration scenario (a developing flood near
 Bethlehem, PA / Lehigh Valley), following the phased scope in `docs/PRD.md`.
 
 **Start here:**
@@ -67,7 +67,7 @@ docker-compose.yml
 
 ## Demo mode vs. live mode
 
-Every external data source (NWS, USGS Water, USGS Earthquakes, NASA FIRMS, AirNow,
+Every external data source (GDACS, NWS, USGS Water, USGS Earthquakes, NASA FIRMS, AirNow,
 OpenFEMA, Google Maps Platform) has a typed adapter in `apps/api/app/adapters/`. Each
 adapter tries the real public API first when credentials/config are present, and falls
 back to a clearly-labeled demo provider on any failure (missing key, timeout, non-2xx).

@@ -12,7 +12,7 @@ honest status in this build.
 | 31.5 Sensor Health AI | `services/sensor_health.py` - detects frozen, jumpy, and stale sensors from the observation series | Implemented |
 | 31.6 Evidence Extraction AI | N/A | Not implemented - no free-text official bulletins are ingested in this build (NWS alert `description` fields are used verbatim, not NLP-extracted) |
 | 31.7 Image Understanding AI | N/A | Not implemented - no imagery pipeline in this build; would sit behind the Before/After view (section 19), not yet built |
-| 31.8 Grounded AI Assistant | `services/assistant.py` - keyword-routed, template-based answers over the same repository data every other feature uses; every answer includes time range, location, sources, observed-vs-inferred labels, confidence, and limitations | Implemented, rule-based; optional LLM-prose-polish extension point is documented but inert |
+| 31.8 Grounded AI Assistant | `services/assistant.py` - routes questions through deterministic EarthPulse tools, exposes a tool trace, then optionally uses Groq to rephrase the immutable fact block; every answer includes time range, location, sources, observed-vs-inferred labels, confidence, and limitations | Implemented; works in grounded-rules mode with optional Groq phrasing |
 
 ## The "no LLM for numbers" rule, concretely
 
@@ -25,7 +25,8 @@ the API response itself, not just in documentation.
 
 ## Where a real LLM would plug in
 
-`services/assistant.py` has a single, clearly marked extension point
-(`_maybe_polish`, currently unused) where a configured `ANTHROPIC_API_KEY` could
-rephrase the assembled, fact-checked answer for tone - never to add a fact, number, or
-probability that wasn't already computed by the rule-based/graph logic above.
+`services/assistant.py` has a single, constrained extension point (`_maybe_polish`).
+When `GROQ_API_KEY` is configured it sends only the assembled, fact-checked answer to
+Groq's OpenAI-compatible Chat Completions endpoint. Groq cannot call EarthPulse tools
+or add a fact, number, probability, source, or route-safety claim. API failure falls
+back to the unchanged grounded response.

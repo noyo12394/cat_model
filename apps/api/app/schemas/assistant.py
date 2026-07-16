@@ -24,6 +24,12 @@ class MapAction(BaseModel):
     target_id: str | None = None
 
 
+class AssistantToolCall(BaseModel):
+    tool: str
+    status: str = "complete"
+    summary: str
+
+
 class AssistantAnswer(BaseModel):
     answer: str
     time_range: TimeRange
@@ -35,8 +41,13 @@ class AssistantAnswer(BaseModel):
     confidence: Confidence
     limitations: list[str] = Field(default_factory=list)
     map_actions: list[MapAction] = Field(default_factory=list)
+    tool_trace: list[AssistantToolCall] = Field(
+        default_factory=list,
+        description="Deterministic EarthPulse tools used before any optional language-model phrasing.",
+    )
+    suggested_questions: list[str] = Field(default_factory=list)
     generated_at: datetime
     prose_source: str = Field(
         default="rule-based",
-        description='"rule-based" or "llm-polished" - see services/assistant.py',
+        description='"grounded-rules" or "groq-grounded" - see services/assistant.py',
     )

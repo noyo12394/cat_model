@@ -43,10 +43,11 @@ export function GoogleMapView({ apiKey, route }: { apiKey: string; route?: Route
   const markersRef = useRef<google.maps.Marker[]>([]);
   const polylinesRef = useRef<google.maps.Polyline[]>([]);
   const dataLayerRef = useRef<google.maps.Data | null>(null);
-  const { facilities, incidents } = useMapData();
+  const { facilities, incidents, globalEvents, globalWatchItems } = useMapData();
   const flyToTarget = useAppStore((s) => s.flyToTarget);
   const layers = useAppStore((s) => s.layers);
   const setPanel = useAppStore((s) => s.setPanel);
+  const mapScope = useAppStore((s) => s.mapScope);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +79,7 @@ export function GoogleMapView({ apiKey, route }: { apiKey: string; route?: Route
     const dataLayer = dataLayerRef.current;
     if (!map || !dataLayer) return;
     dataLayer.forEach((f) => dataLayer.remove(f));
-    if (!layers.hazards) return;
+    if (!layers.hazards || mapScope === "global") return;
     incidents
       .filter((inc) => inc.geometry?.type === "Polygon")
       .forEach((inc) => {
@@ -89,13 +90,33 @@ export function GoogleMapView({ apiKey, route }: { apiKey: string; route?: Route
           geometry: { type: "Polygon", coordinates: [coords] },
         });
       });
-  }, [incidents, layers.hazards]);
+  }, [incidents, layers.hazards, mapScope]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
     markersRef.current.forEach((m) => m.setMap(null));
     markersRef.current = [];
+    if (mapScope === "global") {
+      globalEvents.forEach((event) => {
+        const marker = new google.maps.Marker({
+          position: { lat: event.center[1], lng: event.center[0] },
+          map,
+          title: event.name,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: Math.max(5, Math.min(11, 4 + (globalWatchItems.find((item) => item.event_id === event.event_id)?.priority_score ?? 25) / 16)),
+            fillColor: event.alert_level === "red" ? "#ff5b55" : event.alert_level === "orange" ? "#f6a94a" : "#56ce91",
+            fillOpacity: 0.95,
+            strokeColor: "#071016",
+            strokeWeight: 2,
+          },
+        });
+        marker.addListener("click", () => setPanel({ kind: "global-events" }));
+        markersRef.current.push(marker);
+      });
+      return;
+    }
     if (!layers.infrastructure) return;
     facilities.forEach((f) => {
       const marker = new google.maps.Marker({
@@ -114,7 +135,7 @@ export function GoogleMapView({ apiKey, route }: { apiKey: string; route?: Route
       marker.addListener("click", () => setPanel({ kind: "place", placeId: f.facility_id }));
       markersRef.current.push(marker);
     });
-  }, [facilities, layers.infrastructure, setPanel]);
+  }, [facilities, globalEvents, globalWatchItems, layers.infrastructure, mapScope, setPanel]);
 
   useEffect(() => {
     const map = mapRef.current;

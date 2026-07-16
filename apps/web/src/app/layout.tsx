@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/shell/AppShell";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "EarthPulse - live hazard & infrastructure intelligence",
+  metadataBase: new URL("https://earthpulse-cat-model.vercel.app"),
+  title: "EarthPulse — Global compound-hazard intelligence",
   description:
-    "A live intelligence platform for hazards, infrastructure and community impacts. Map-first situational awareness with evidence-linked forecasts.",
+    "Global disaster awareness plus evidence-linked compound-hazard, infrastructure, route, and community consequence intelligence.",
+  openGraph: {
+    title: "EarthPulse — Global compound-hazard intelligence",
+    description: "Live GDACS events meet evidence-linked consequence analysis, route exposure, possible futures, and uncertainty.",
+    type: "website",
+    images: [{ url: "/og.png", width: 1731, height: 909, alt: "EarthPulse map intelligence interface for Bethlehem and the Lehigh Valley" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "EarthPulse — Global compound-hazard intelligence",
+    description: "From observed hazard to possible infrastructure and community consequences.",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({
@@ -26,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col">
         <Providers>
           <AppShell>{children}</AppShell>

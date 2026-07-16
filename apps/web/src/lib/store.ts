@@ -5,6 +5,8 @@ export type AppMode = "live" | "forecast" | "replay" | "scenario-lab" | "portfol
 
 export type RightPanelContent =
   | { kind: "region-summary" }
+  | { kind: "global-events" }
+  | { kind: "compound"; eventId: string }
   | { kind: "place"; placeId: string }
   | { kind: "incident"; incidentId: string }
   | { kind: "route"; originPlaceId: string; destinationPlaceId: string }
@@ -27,12 +29,17 @@ interface LayerVisibility {
   imagery: boolean;
 }
 
+export type HazardFilterKey = "weather" | "flood" | "earthquake" | "wildfire" | "air" | "landslide";
+
 interface AppState {
   mode: AppMode;
   setMode: (mode: AppMode) => void;
 
   panel: RightPanelContent;
   setPanel: (panel: RightPanelContent) => void;
+
+  mapScope: "local" | "global";
+  setMapScope: (scope: "local" | "global") => void;
 
   time: TimeState;
   setOffsetMinutes: (minutes: number) => void;
@@ -41,6 +48,9 @@ interface AppState {
 
   layers: LayerVisibility;
   toggleLayer: (key: keyof LayerVisibility) => void;
+
+  hazardFilters: Record<HazardFilterKey, boolean>;
+  toggleHazardFilter: (key: HazardFilterKey) => void;
 
   uncertaintyLens: boolean;
   toggleUncertaintyLens: () => void;
@@ -66,6 +76,9 @@ export const useAppStore = create<AppState>((set) => ({
   panel: { kind: "region-summary" },
   setPanel: (panel) => set({ panel }),
 
+  mapScope: "local",
+  setMapScope: (mapScope) => set({ mapScope }),
+
   time: { offsetMinutes: 0, isPlaying: false, playbackSpeed: 1 },
   setOffsetMinutes: (minutes) => set((s) => ({ time: { ...s.time, offsetMinutes: minutes } })),
   togglePlaying: () => set((s) => ({ time: { ...s.time, isPlaying: !s.time.isPlaying } })),
@@ -73,6 +86,9 @@ export const useAppStore = create<AppState>((set) => ({
 
   layers: { hazards: true, infrastructure: true, population: false, intelligence: true, imagery: false },
   toggleLayer: (key) => set((s) => ({ layers: { ...s.layers, [key]: !s.layers[key] } })),
+
+  hazardFilters: { weather: true, flood: true, earthquake: true, wildfire: true, air: true, landslide: true },
+  toggleHazardFilter: (key) => set((s) => ({ hazardFilters: { ...s.hazardFilters, [key]: !s.hazardFilters[key] } })),
 
   uncertaintyLens: false,
   toggleUncertaintyLens: () => set((s) => ({ uncertaintyLens: !s.uncertaintyLens })),

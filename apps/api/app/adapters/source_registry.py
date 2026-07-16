@@ -15,6 +15,8 @@ class SourceDescriptor:
 
 
 SOURCE_REGISTRY: list[SourceDescriptor] = [
+    SourceDescriptor("GDACS", "Global multi-hazard events", "UN–European Commission GDACS", None,
+                      "https://www.gdacs.org/gdacsapi/swagger/index.html"),
     SourceDescriptor("NWS", "Weather alerts", "National Weather Service", None,
                       "https://www.weather.gov/documentation/services-web-api"),
     SourceDescriptor("USGS_WATER", "River & stream gauges", "U.S. Geological Survey", None,

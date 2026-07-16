@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     nws_base_url: str = "https://api.weather.gov"
     usgs_water_base_url: str = "https://waterservices.usgs.gov/nwis"
     usgs_quake_base_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0"
+    gdacs_base_url: str = "https://www.gdacs.org/gdacsapi/api"
     firms_map_key: str | None = None  # NASA FIRMS MAP_KEY
     airnow_api_key: str | None = None  # AirNow API key
     openfema_base_url: str = "https://www.fema.gov/api/open"
@@ -41,9 +42,11 @@ class Settings(BaseSettings):
     redis_url: str | None = None
 
     # --- AI assistant: the Grounded AI Assistant works fully offline using
-    # templated, evidence-grounded responses. Setting an Anthropic key upgrades
-    # prose generation only - it must never be used to invent numbers. ---
-    anthropic_api_key: str | None = None
+    # templated, evidence-grounded responses. A Groq key upgrades prose only;
+    # computed hazard facts and numbers never come from the language model. ---
+    groq_api_key: str | None = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_base_url: str = "https://api.groq.com/openai/v1"
 
     rate_limit_per_minute: int = 120
 

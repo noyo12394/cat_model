@@ -1,40 +1,65 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { Activity, CheckCircle2, CircleDashed, Database, ExternalLink, RefreshCw, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 
-const STATUS_COLOR: Record<string, string> = {
-  live: "bg-status-normal",
-  stale: "bg-status-watch",
-  demo: "bg-status-elevated",
-  unavailable: "bg-status-unknown",
-};
-
-/** Source Health page (section 42): is each feed actually working right now? */
+/** Partner-facing source operations view: availability, provenance posture,
+ * interoperability, and explicit separation of live/demo/unavailable feeds. */
 export function SourceHealthPanel() {
-  const { data, isLoading } = useQuery({ queryKey: ["source-health"], queryFn: api.sourceStatus });
+  const query = useQuery({ queryKey: ["source-health"], queryFn: api.sourceStatus, refetchInterval: 300_000 });
+  const sources = query.data ?? [];
+  const counts = {
+    live: sources.filter((source) => source.status === "live").length,
+    demo: sources.filter((source) => source.status === "demo").length,
+    unavailable: sources.filter((source) => source.status === "unavailable").length,
+  };
 
   return (
-    <div className="space-y-3 p-4">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-foreground/50">Source health</h2>
-      {isLoading && <p className="text-sm text-foreground/60">Checking feeds…</p>}
-      <ul className="space-y-2">
-        {(data ?? []).map((s) => (
-          <li key={s.key} className="flex items-start gap-2 rounded-md border border-border p-2">
-            <span
-              aria-hidden
-              className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${STATUS_COLOR[s.status] ?? "bg-status-unknown"}`}
-            />
-            <div>
-              <p className="text-sm font-medium">
-                {s.display_name} <span className="text-xs font-normal text-foreground/50">({s.organization})</span>
-              </p>
-              <p className="text-xs uppercase tracking-wide text-foreground/50">{s.status}</p>
-              <p className="text-xs text-foreground/60">{s.detail}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
+    <div className="source-ops-panel">
+      <header className="source-ops-header">
+        <div><span className="source-ops-icon"><ShieldCheck size={18} /></span><div><span className="panel-kicker">TRUST &amp; OPERATIONS</span><h1>Source health</h1></div></div>
+        <p>Every integration reports its own state. Unavailable sources stay unavailable; demo fixtures are never relabeled as live.</p>
+        <button type="button" onClick={() => query.refetch()} disabled={query.isFetching}><RefreshCw size={12} className={query.isFetching ? "is-spinning" : ""} /> Recheck feeds</button>
+      </header>
+
+      {query.isLoading && <div className="global-loading"><span /><span /><span /> Checking authoritative sources…</div>}
+      {query.isError && <div className="global-unavailable"><CircleDashed size={20} /><strong>Health service unavailable</strong><p>The map remains usable, but source status could not be verified.</p></div>}
+
+      {sources.length > 0 && (
+        <>
+          <section className="source-health-summary" aria-label="Source status summary">
+            <div><span className="feed-dot live" /><strong>{counts.live}</strong><small>live</small></div>
+            <div><span className="feed-dot demo" /><strong>{counts.demo}</strong><small>demo</small></div>
+            <div><span className="feed-dot unavailable" /><strong>{counts.unavailable}</strong><small>unavailable</small></div>
+          </section>
+
+          <section className="source-list" aria-label="Data source health">
+            {sources.map((source) => (
+              <article className={`source-card ${source.status}`} key={source.key}>
+                <span className="source-state-icon">{source.status === "live" ? <CheckCircle2 size={15} /> : source.status === "demo" ? <Database size={15} /> : <CircleDashed size={15} />}</span>
+                <div><strong>{source.display_name}</strong><small>{source.organization}</small><p>{source.detail}</p><time>{formatUtc(source.checked_at)}</time></div>
+                <span className="source-status-pill">{source.status}</span>
+              </article>
+            ))}
+          </section>
+
+          <section className="interoperability-card">
+            <div className="interoperability-title"><Activity size={15} /><div><span className="panel-kicker">PARTNER INTEGRATION</span><h2>Interoperability posture</h2></div></div>
+            <dl>
+              <div><dt>Event exchange</dt><dd>GeoJSON</dd></div>
+              <div><dt>Alert semantics</dt><dd>GDACS MHEWS</dd></div>
+              <div><dt>API contract</dt><dd>OpenAPI</dd></div>
+              <div><dt>Time standard</dt><dd>UTC / ISO 8601</dd></div>
+            </dl>
+            <a href="https://cat-model-api.vercel.app/docs" target="_blank" rel="noreferrer">Open API documentation <ExternalLink size={11} /></a>
+          </section>
+        </>
+      )}
     </div>
   );
+}
+
+function formatUtc(value: string) {
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(value)) + " UTC";
 }

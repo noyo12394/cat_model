@@ -10,6 +10,8 @@ import { ScenarioLabPanel } from "@/components/scenario/ScenarioLabPanel";
 import { PortfolioPanel } from "@/components/portfolio/PortfolioPanel";
 import { HiddenRisksPanel } from "@/components/common/HiddenRisksPanel";
 import { SourceHealthPanel } from "@/components/common/SourceHealthPanel";
+import { CompoundIntelligencePanel } from "@/components/compound/CompoundIntelligencePanel";
+import { GlobalEventsPanel } from "@/components/global/GlobalEventsPanel";
 
 /** The right intelligence panel (section 6.3): content changes based on
  * context - no selection, place selected, event selected, route selected,
@@ -22,6 +24,10 @@ export function RightPanelHost() {
   if (mode === "portfolio") return <PortfolioPanel />;
 
   switch (panel.kind) {
+    case "global-events":
+      return <GlobalEventsPanel />;
+    case "compound":
+      return <CompoundIntelligencePanel eventId={panel.eventId} />;
     case "place":
       return <LocationCapsulePanel placeId={panel.placeId} />;
     case "incident":

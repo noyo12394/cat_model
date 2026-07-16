@@ -1,10 +1,12 @@
 "use client";
 
 import { useAppStore } from "@/lib/store";
+import { Activity, Bot, Eye, Radio, ShieldCheck } from "lucide-react";
 import { TopSearchBar } from "./TopSearchBar";
 import { LeftNavRail } from "./LeftNavRail";
 import { RightPanelHost } from "./RightPanelHost";
 import { BottomTimeBar } from "./BottomTimeBar";
+import { MapControls } from "./MapControls";
 import { MapView } from "@/components/map/MapView";
 import { TrustFooter } from "@/components/common/TrustFooter";
 
@@ -13,40 +15,62 @@ import { TrustFooter } from "@/components/common/TrustFooter";
  * map instance survives client-side navigation between modes/incidents. */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const uncertaintyLens = useAppStore((s) => s.uncertaintyLens);
+  const highContrast = useAppStore((s) => s.highContrast);
+  const setPanel = useAppStore((s) => s.setPanel);
+  const mapScope = useAppStore((s) => s.mapScope);
 
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2">
-        <span className="shrink-0 text-base font-semibold tracking-tight">
-          Earth<span className="text-accent">Pulse</span>
-        </span>
+    <div className={`earthpulse-shell flex h-dvh flex-col ${highContrast ? "high-contrast" : ""}`}>
+      <a href="#earthpulse-map" className="skip-link">Skip to map</a>
+      <a href="#intelligence-panel" className="skip-link">Skip to intelligence</a>
+
+      <header className="app-header">
+        <div className="brand-lockup" aria-label="EarthPulse home">
+          <span className="brand-mark" aria-hidden><Activity size={18} strokeWidth={2.5} /></span>
+          <span className="brand-name">Earth<span>Pulse</span></span>
+          <span className="brand-edition">LIVE INTELLIGENCE</span>
+        </div>
         <TopSearchBar />
-        {uncertaintyLens && (
-          <span className="ml-auto rounded-full border border-dashed border-accent px-2 py-0.5 text-xs text-accent">
-            Uncertainty lens on
-          </span>
-        )}
+        <div className="header-status" aria-label="System status">
+          <span className="status-chip status-chip-live"><Radio size={13} aria-hidden /> Multi-hazard demo</span>
+          <span className="status-chip"><ShieldCheck size={13} aria-hidden /> 8 source adapters</span>
+          {uncertaintyLens && <span className="status-chip status-chip-lens"><Eye size={13} aria-hidden /> Uncertainty</span>}
+        </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="workspace flex flex-1 overflow-hidden">
         <LeftNavRail />
-        <main className="relative flex-1">
+        <main id="earthpulse-map" className="map-stage relative flex-1" tabIndex={-1}>
           <MapView />
+          <MapControls />
+
+          <div className="map-context-card" role="status">
+            <span className="context-eyebrow">{mapScope === "global" ? "GLOBAL EVENTS · LIVE GDACS" : "COMPOUND EVENT · RESEARCH DEMO"}</span>
+            <strong>{mapScope === "global" ? "Operational event picture" : "3 connected signals"}</strong>
+            <span>{mapScope === "global" ? "Official alerts · UTC freshness · source reports" : "Heavy rain + river rise + wet ground"}</span>
+          </div>
+
+          <button
+            type="button"
+            className="ask-earthpulse-button"
+            onClick={() => setPanel({ kind: "assistant", question: "Explain the compound event and what we should check next" })}
+          >
+            <Bot size={17} aria-hidden />
+            <span><strong>Ask EarthPulse</strong><small>Grounded agent</small></span>
+          </button>
+
+          <aside
+            id="intelligence-panel"
+            className="intelligence-panel"
+            aria-label="Intelligence panel"
+            tabIndex={-1}
+          >
+            <RightPanelHost />
+          </aside>
+
+          <BottomTimeBar />
         </main>
-        <aside
-          className="hidden w-[420px] shrink-0 overflow-y-auto border-l border-border bg-surface md:block"
-          aria-label="Intelligence panel"
-        >
-          <RightPanelHost />
-        </aside>
       </div>
-
-      {/* Mobile: render the panel below the map instead of hiding it. */}
-      <div className="max-h-[45vh] overflow-y-auto border-t border-border bg-surface md:hidden">
-        <RightPanelHost />
-      </div>
-
-      <BottomTimeBar />
       <TrustFooter />
       {children}
     </div>

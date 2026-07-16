@@ -8,8 +8,11 @@ import type {
   IncidentDetail,
   IncidentSummary,
   LiveEventsResponse,
+  GlobalEventsResponse,
+  GlobalOutlookResponse,
   LocationCapsule,
   ModelCard,
+  MultiHazardOverview,
   PlaceSearchResult,
   PortfolioExposure,
   RegionSummary,
@@ -46,6 +49,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   liveSummary: () => request<RegionSummary>("/live/summary"),
   liveEvents: () => request<LiveEventsResponse>("/live/events"),
+  globalEvents: () => request<GlobalEventsResponse>("/live/global-events"),
+  globalOutlook: (horizonMinutes: number) => request<GlobalOutlookResponse>(`/live/global-outlook?horizon_minutes=${Math.max(0, Math.min(1440, Math.round(horizonMinutes)))}`),
+  multiHazardOverview: () => request<MultiHazardOverview>("/live/multi-hazard"),
 
   searchPlaces: (q: string) =>
     request<{ query: string; results: PlaceSearchResult[] }>(`/places/search?q=${encodeURIComponent(q)}`),
