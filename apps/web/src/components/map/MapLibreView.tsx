@@ -35,6 +35,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
   const uncertaintyLens = useAppStore((s) => s.uncertaintyLens);
   const offsetMinutes = useAppStore((s) => s.time.offsetMinutes);
   const setPanel = useAppStore((s) => s.setPanel);
+  const selectGlobalEvent = useAppStore((s) => s.selectGlobalEvent);
   const mapScope = useAppStore((s) => s.mapScope);
 
   useEffect(() => {
@@ -291,6 +292,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
         detail.textContent = `${String(feature.properties?.severity ?? "Severity detail unavailable")} · watch ${String(feature.properties?.priority ?? "—")}/100`;
         wrapper.append(alert, heading, detail);
         new maplibregl.Popup({ offset: 10 }).setLngLat(coordinates).setDOMContent(wrapper).addTo(map);
+        selectGlobalEvent(String(feature.properties?.id ?? "") || null);
         setPanel({ kind: "global-events" });
       });
       map.on("mouseenter", "global-event-points", () => { map.getCanvas().style.cursor = "pointer"; });
@@ -301,7 +303,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
       map.remove();
       mapRef.current = null;
     };
-  }, [setPanel]);
+  }, [selectGlobalEvent, setPanel]);
 
   // incident geometry (official-alert style: solid, strong outline)
   useEffect(() => {

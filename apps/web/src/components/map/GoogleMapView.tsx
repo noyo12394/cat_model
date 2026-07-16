@@ -47,6 +47,7 @@ export function GoogleMapView({ apiKey, route }: { apiKey: string; route?: Route
   const flyToTarget = useAppStore((s) => s.flyToTarget);
   const layers = useAppStore((s) => s.layers);
   const setPanel = useAppStore((s) => s.setPanel);
+  const selectGlobalEvent = useAppStore((s) => s.selectGlobalEvent);
   const mapScope = useAppStore((s) => s.mapScope);
 
   useEffect(() => {
@@ -112,7 +113,7 @@ export function GoogleMapView({ apiKey, route }: { apiKey: string; route?: Route
             strokeWeight: 2,
           },
         });
-        marker.addListener("click", () => setPanel({ kind: "global-events" }));
+        marker.addListener("click", () => { selectGlobalEvent(event.event_id); setPanel({ kind: "global-events" }); });
         markersRef.current.push(marker);
       });
       return;
@@ -135,7 +136,7 @@ export function GoogleMapView({ apiKey, route }: { apiKey: string; route?: Route
       marker.addListener("click", () => setPanel({ kind: "place", placeId: f.facility_id }));
       markersRef.current.push(marker);
     });
-  }, [facilities, globalEvents, globalWatchItems, layers.infrastructure, mapScope, setPanel]);
+  }, [facilities, globalEvents, globalWatchItems, layers.infrastructure, mapScope, selectGlobalEvent, setPanel]);
 
   useEffect(() => {
     const map = mapRef.current;

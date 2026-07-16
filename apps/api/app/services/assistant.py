@@ -105,7 +105,14 @@ async def answer_question_async(repo: MemoryRepository, settings: Settings, ques
         )
     else:
         watch_items = sorted((priority_for(event, horizon, now=now) for event in feed.items), key=lambda item: -item.priority_score)
-        top = watch_items[:3]
+        selected = next(
+            (
+                item for item in watch_items
+                if item.name.lower() in q or (len(item.country) > 3 and item.country.lower() in q)
+            ),
+            None,
+        )
+        top = [selected] if selected else watch_items[:3]
         top_text = "; ".join(
             f"{item.priority_label}: {item.name} ({item.alert_level} alert, watch score {item.priority_score}/100)"
             for item in top
@@ -113,7 +120,7 @@ async def answer_question_async(repo: MemoryRepository, settings: Settings, ques
         result = AssistantAnswer(
             answer=(
                 f"For the {horizon_label(horizon).lower()} operating window, the live GDACS feed has {len(feed.items)} active events. "
-                f"The highest verification priorities are {top_text}. These watch scores rank analyst attention from published alert level, GDACS score, and update freshness; they do not predict hazard evolution or impact probability."
+                f"{'The selected event is' if selected else 'The highest verification priorities are'} {top_text}. These watch scores rank analyst attention from published alert level, GDACS score, and update freshness; they do not predict hazard evolution or impact probability."
             ),
             time_range=TimeRange(start=now, label=f"GDACS {horizon_label(horizon)}"),
             location_label="Global operating picture",

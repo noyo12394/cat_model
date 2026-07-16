@@ -41,6 +41,9 @@ interface AppState {
   mapScope: "local" | "global";
   setMapScope: (scope: "local" | "global") => void;
 
+  selectedGlobalEventId: string | null;
+  selectGlobalEvent: (eventId: string | null) => void;
+
   time: TimeState;
   setOffsetMinutes: (minutes: number) => void;
   togglePlaying: () => void;
@@ -78,6 +81,9 @@ export const useAppStore = create<AppState>((set) => ({
 
   mapScope: "local",
   setMapScope: (mapScope) => set({ mapScope }),
+
+  selectedGlobalEventId: null,
+  selectGlobalEvent: (selectedGlobalEventId) => set({ selectedGlobalEventId }),
 
   time: { offsetMinutes: 0, isPlaying: false, playbackSpeed: 1 },
   setOffsetMinutes: (minutes) => set((s) => ({ time: { ...s.time, offsetMinutes: minutes } })),

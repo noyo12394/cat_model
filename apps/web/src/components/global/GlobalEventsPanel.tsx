@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BrainCircuit, Check, Copy, Download, ExternalLink, Globe2, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
+import { BrainCircuit, Check, ClipboardCheck, Copy, Download, ExternalLink, Globe2, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import type { GlobalEvent } from "@/lib/types";
@@ -18,6 +18,8 @@ export function GlobalEventsPanel() {
   const flyTo = useAppStore((state) => state.flyTo);
   const setMapScope = useAppStore((state) => state.setMapScope);
   const setPanel = useAppStore((state) => state.setPanel);
+  const selectedGlobalEventId = useAppStore((state) => state.selectedGlobalEventId);
+  const selectGlobalEvent = useAppStore((state) => state.selectGlobalEvent);
   const time = useAppStore((state) => state.time);
   const setOffsetMinutes = useAppStore((state) => state.setOffsetMinutes);
   const query = useQuery({
@@ -39,9 +41,15 @@ export function GlobalEventsPanel() {
     const rank: Record<string, number> = { red: 0, orange: 1, green: 2 };
     return [...filtered].sort((a, b) => (rank[a.alert_level] ?? 3) - (rank[b.alert_level] ?? 3) || Date.parse(b.modified_at) - Date.parse(a.modified_at));
   }, [hazard, query.data?.events]);
+  const selectedEvent = useMemo(
+    () => (query.data?.events ?? []).find((event) => event.event_id === selectedGlobalEventId) ?? null,
+    [query.data?.events, selectedGlobalEventId],
+  );
+  const selectedWatch = selectedEvent ? watchByEvent.get(selectedEvent.event_id) : undefined;
 
   const focus = (event: GlobalEvent) => {
     setMapScope("global");
+    selectGlobalEvent(event.event_id);
     flyTo(event.center, event.event_type === "TC" || event.event_type === "FL" ? 4 : 5);
   };
 
@@ -145,10 +153,34 @@ export function GlobalEventsPanel() {
             {HAZARDS.map((item) => <button key={item} type="button" className={hazard === item ? "is-active" : ""} onClick={() => setHazard(item)} aria-pressed={hazard === item}>{item === "ALL" ? "All" : TYPE_LABELS[item]}</button>)}
           </div>
 
+          {selectedEvent && (
+            <section className={`selected-event-brief ${selectedEvent.alert_level}`} aria-label={`Operational brief for ${selectedEvent.name}`}>
+              <div className="selected-event-heading">
+                <span><ClipboardCheck size={15} /></span>
+                <div><span className="panel-kicker">EVENT BRIEF · SOURCE BACKED</span><strong>{selectedEvent.name}</strong><small>{TYPE_LABELS[selectedEvent.event_type] ?? selectedEvent.event_type} · {selectedEvent.country}</small></div>
+                <button type="button" onClick={() => selectGlobalEvent(null)} aria-label="Close event brief">×</button>
+              </div>
+              <p>{selectedEvent.severity_text}</p>
+              <dl>
+                <div><dt>Official alert</dt><dd>{selectedEvent.alert_level}</dd></div>
+                <div><dt>GDACS score</dt><dd>{selectedEvent.alert_score ?? "—"}</dd></div>
+                <div><dt>Source modified</dt><dd>{formatUtcShort(selectedEvent.modified_at)}</dd></div>
+                <div><dt>Watch priority</dt><dd>{selectedWatch ? `${selectedWatch.priority_score}/100` : "checking"}</dd></div>
+              </dl>
+              <div className="selected-event-next"><span>NEXT VERIFICATION</span><strong>{selectedWatch?.next_action ?? "Check the official source report and any national-authority update."}</strong></div>
+              {selectedWatch?.drivers && <div className="selected-event-drivers">{selectedWatch.drivers.map((driver) => <span key={driver}>{driver}</span>)}</div>}
+              <div className="selected-event-actions">
+                <a href={selectedEvent.report_url} target="_blank" rel="noreferrer"><ExternalLink size={12} /> Official GDACS report</a>
+                <button type="button" onClick={() => setPanel({ kind: "assistant", question: `Give a global GDACS brief for ${selectedEvent.name} in ${selectedEvent.country} for a ${horizonMinutes}-minute operating window. Explain the watch score, source evidence, and limits.` })}><Sparkles size={12} /> Ask grounded AI</button>
+              </div>
+              <small className="selected-event-authority">GDACS is a coordination and impact-estimation source. Confirm protective actions with the responsible national authority.</small>
+            </section>
+          )}
+
           <section className="global-event-list" aria-label="Global event list">
             <div className="event-list-heading"><span>{events.length} EVENTS</span><span>ALERT · UPDATED UTC</span></div>
             {events.slice(0, 24).map((event) => (
-              <article className={`global-event-card ${event.alert_level}`} key={event.event_id}>
+              <article className={`global-event-card ${event.alert_level} ${selectedEvent?.event_id === event.event_id ? "is-selected" : ""}`} key={event.event_id}>
                 <button type="button" className="event-focus" onClick={() => focus(event)} aria-label={`Focus ${event.name} on map`}>
                   <span className="event-type">{event.event_type}</span>
                   <span className="event-copy"><strong>{event.name}</strong><small>{event.severity_text}</small><em>{event.country} · {event.source}</em></span>
@@ -175,6 +207,10 @@ function formatUtc(value: string) {
 
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(new Date(value));
+}
+
+function formatUtcShort(value: string) {
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" }).format(new Date(value)) + " UTC";
 }
 
 function ageLabel(value: string) {
