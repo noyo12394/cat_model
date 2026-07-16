@@ -1,0 +1,18 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+httpx==0.28.1
+networkx==3.4.2
+python-multipart==0.0.20
+
+pytest==8.3.4
+pytest-asyncio==0.24.0
+
+# NOTE: section 34's suggested backend stack also lists GeoPandas, Shapely,
+# Rasterio and Xarray. This build's request-path code intentionally uses
+# lightweight pure-Python geometry helpers instead (app/services/geo.py) to
+# keep the API installable without system GDAL/GEOS libraries. Those heavier
+# packages are the right choice for a future raster/vector ingestion worker
+# (see docs/ARCHITECTURE.md) and should be added to that worker's own
+# requirements file when it is built, not to the request-serving API.

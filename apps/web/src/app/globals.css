@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #14181f;
+  --surface: #ffffff;
+  --surface-muted: #eef1f5;
+  --border: #d8dee7;
+
+  /* Status ladder (section 37) - never the sole indicator, always paired
+     with an icon/label/pattern in components. */
+  --status-normal: #1a8a4a;
+  --status-watch: #c9a300;
+  --status-elevated: #d9761f;
+  --status-severe: #d13b3b;
+  --status-extreme: #8a2ec2;
+  --status-unknown: #6b7280;
+
+  --accent: #1f6fd6;
+}
+
+:root[data-theme="dark"] {
+  --background: #0b0e13;
+  --foreground: #e7ebf2;
+  --surface: #12161d;
+  --surface-muted: #1a2029;
+  --border: #2a313d;
+  --accent: #4f9bff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0b0e13;
+    --foreground: #e7ebf2;
+    --surface: #12161d;
+    --surface-muted: #1a2029;
+    --border: #2a313d;
+    --accent: #4f9bff;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-status-normal: var(--status-normal);
+  --color-status-watch: var(--status-watch);
+  --color-status-elevated: var(--status-elevated);
+  --color-status-severe: var(--status-severe);
+  --color-status-extreme: var(--status-extreme);
+  --color-status-unknown: var(--status-unknown);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Evidence styles (section 37): every certainty class gets a border
+   treatment, not just a color, so the distinction survives grayscale /
+   color-blind viewing. */
+.evidence-observed {
+  border-style: solid;
+  border-width: 2px;
+}
+.evidence-official_alert {
+  border-style: solid;
+  border-width: 3px;
+}
+.evidence-forecast {
+  border-style: dashed;
+  border-width: 2px;
+}
+.evidence-ai_inferred {
+  border-style: dotted;
+  border-width: 2px;
+}
+.evidence-user_reported,
+.evidence-unverified {
+  border-style: dashed;
+  border-width: 1px;
+  opacity: 0.9;
+}
+.evidence-historical,
+.evidence-simulated {
+  border-style: dotted;
+  border-width: 1px;
+  opacity: 0.85;
+}
+
+.hatched-missing-data {
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--status-unknown) 35%, transparent),
+    color-mix(in srgb, var(--status-unknown) 35%, transparent) 4px,
+    transparent 4px,
+    transparent 10px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.maplibregl-map {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
