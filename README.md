@@ -13,6 +13,7 @@ Bethlehem, PA / Lehigh Valley), following the phased scope in `docs/PRD.md`.
 - [`docs/PRD.md`](docs/PRD.md) - product requirements and what "done" means for this build
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - system design and key decisions
 - [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md) - what is real vs. scoped out, and why
+- [`docs/PARTNER_READINESS.md`](docs/PARTNER_READINESS.md) - industry-partner walkthrough, evidence posture and operational delivery gates
 
 ## Quickstart (no API keys required)
 
