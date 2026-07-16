@@ -45,9 +45,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <MapControls />
 
           <div className="map-context-card" role="status">
-            <span className="context-eyebrow">{mapScope === "global" ? "GLOBAL EVENTS · LIVE GDACS" : "COMPOUND EVENT · RESEARCH DEMO"}</span>
-            <strong>{mapScope === "global" ? "Operational event picture" : "3 connected signals"}</strong>
-            <span>{mapScope === "global" ? "Official alerts · UTC freshness · source reports" : "Heavy rain + river rise + wet ground"}</span>
+            <span className="context-eyebrow">{mapScope === "global" ? "LIVE EVENT MAP · TAP A SYMBOL" : "FLOOD SCENE · RESEARCH DEMO"}</span>
+            <strong>{mapScope === "global" ? "Rings, waves, swirls: one symbol per hazard" : "Rain → river rise → crossing check"}</strong>
+            <span>{mapScope === "global" ? "Icons identify the reported source location, not an impact footprint." : "Blue streaks show rainfall direction; cyan shows the modeled river corridor."}</span>
           </div>
 
           <button

@@ -6,7 +6,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useAppStore, type HazardFilterKey } from "@/lib/store";
 import { useMapData } from "./useMapData";
 import { facilityColor, facilityIcon } from "./facilityStyle";
-import type { RouteOption } from "@/lib/types";
+import type { GlobalEvent, RouteOption } from "@/lib/types";
 import { exposureColor } from "./facilityStyle";
 
 const BETHLEHEM_CENTER: [number, number] = [-75.3705, 40.6259];
@@ -28,6 +28,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
+  const globalMarkersRef = useRef<maplibregl.Marker[]>([]);
   const { facilities, incidents, sensors, compoundEvents, globalEvents, globalWatchItems } = useMapData();
   const flyToTarget = useAppStore((s) => s.flyToTarget);
   const layers = useAppStore((s) => s.layers);
@@ -37,6 +38,8 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
   const setPanel = useAppStore((s) => s.setPanel);
   const selectGlobalEvent = useAppStore((s) => s.selectGlobalEvent);
   const mapScope = useAppStore((s) => s.mapScope);
+  const selectedGlobalEventId = useAppStore((s) => s.selectedGlobalEventId);
+  const selectedGlobalEvent = globalEvents.find((event) => event.event_id === selectedGlobalEventId) ?? null;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -56,13 +59,13 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
         id: "incident-fill",
         type: "fill",
         source: "incident-geometry",
-        paint: { "fill-color": "#d13b3b", "fill-opacity": 0.15 },
+        paint: { "fill-color": "#e5c159", "fill-opacity": 0.055 },
       });
       map.addLayer({
         id: "incident-outline",
         type: "line",
         source: "incident-geometry",
-        paint: { "line-color": "#d13b3b", "line-width": 3 },
+        paint: { "line-color": "#e5c159", "line-width": 1.4, "line-opacity": 0.58, "line-dasharray": [2, 2] },
       });
 
       map.addSource("global-events", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -73,7 +76,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["coalesce", ["get", "priority"], 25], 0, 8, 50, 13, 100, 22],
           "circle-color": ["match", ["get", "alert"], "red", "#ff5b55", "orange", "#f6a94a", "#56ce91"],
-          "circle-opacity": 0.14,
+          "circle-opacity": 0.09,
           "circle-blur": 0.35,
         },
       });
@@ -82,7 +85,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
         type: "circle",
         source: "global-events",
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["coalesce", ["get", "priority"], 25], 0, 4, 50, 6, 100, 9],
+          "circle-radius": ["interpolate", ["linear"], ["coalesce", ["get", "priority"], 25], 0, 3, 50, 5, 100, 7],
           "circle-color": ["match", ["get", "alert"], "red", "#ff5b55", "orange", "#f6a94a", "#56ce91"],
           "circle-stroke-color": "#071016",
           "circle-stroke-width": 2,
@@ -95,8 +98,8 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
         type: "fill",
         source: "forecast-impact",
         paint: {
-          "fill-color": ["match", ["get", "band"], "likely", "#f97355", "#fbbf24"],
-          "fill-opacity": ["match", ["get", "band"], "likely", 0.24, 0.1],
+          "fill-color": ["match", ["get", "band"], "likely", "#36cae5", "#e5c159"],
+          "fill-opacity": ["match", ["get", "band"], "likely", 0.15, 0.05],
         },
       });
       map.addLayer({
@@ -104,8 +107,8 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
         type: "line",
         source: "forecast-impact",
         paint: {
-          "line-color": ["match", ["get", "band"], "likely", "#fb7a5f", "#fbbf24"],
-          "line-width": ["match", ["get", "band"], "likely", 2.5, 1.5],
+          "line-color": ["match", ["get", "band"], "likely", "#58d8ec", "#e5c159"],
+          "line-width": ["match", ["get", "band"], "likely", 1.8, 1.2],
           "line-dasharray": [2, 2],
         },
       });
@@ -117,7 +120,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
         source: "compound-surfaces",
         paint: {
           "fill-color": ["match", ["get", "group"], "weather", "#4f7cff", "flood", "#16b8d4", "landslide", "#d5a45e", "#a78bfa"],
-          "fill-opacity": ["match", ["get", "certainty"], "observed", 0.22, "forecast", 0.15, 0.09],
+          "fill-opacity": ["match", ["get", "group"], "weather", 0.075, "flood", 0.18, 0.06],
         },
       });
       map.addLayer({
@@ -126,8 +129,8 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
         source: "compound-surfaces",
         paint: {
           "line-color": ["match", ["get", "group"], "weather", "#7ba2ff", "flood", "#54d8ec", "landslide", "#e6bd82", "#c4b5fd"],
-          "line-width": 1.5,
-          "line-opacity": 0.75,
+          "line-width": ["match", ["get", "group"], "flood", 1.8, 1],
+          "line-opacity": ["match", ["get", "group"], "flood", 0.75, 0.32],
           "line-dasharray": [2, 2],
         },
       });
@@ -135,6 +138,25 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
       map.addSource("hazard-flow", {
         type: "geojson",
         data: { type: "FeatureCollection", features: [] },
+      });
+
+      map.addSource("rain-particles", {
+        type: "geojson",
+        data: { type: "FeatureCollection", features: [] },
+      });
+      map.addLayer({
+        id: "rain-particle-glow",
+        type: "line",
+        source: "rain-particles",
+        layout: { "line-cap": "round" },
+        paint: { "line-color": "#4ddcf5", "line-width": 4, "line-opacity": 0.08, "line-blur": 1.2 },
+      });
+      map.addLayer({
+        id: "rain-particles-layer",
+        type: "line",
+        source: "rain-particles",
+        layout: { "line-cap": "round" },
+        paint: { "line-color": "#a9f2ff", "line-width": 1.3, "line-opacity": 0.6 },
       });
       map.addLayer({
         id: "hazard-flow-glow",
@@ -300,6 +322,8 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
     });
 
     return () => {
+      markersRef.current.forEach((marker) => marker.remove());
+      globalMarkersRef.current.forEach((marker) => marker.remove());
       map.remove();
       mapRef.current = null;
     };
@@ -333,15 +357,17 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
     const apply = () => {
       const source = map.getSource("global-events") as maplibregl.GeoJSONSource | undefined;
       if (!source) return;
+      const visibleEvents = prioritisedGlobalEvents(globalEvents, globalWatchItems, selectedGlobalEventId);
       source.setData({
         type: "FeatureCollection",
-        features: mapScope === "global" ? globalEvents.map((event) => ({
+        features: mapScope === "global" ? visibleEvents.map((event) => ({
           type: "Feature" as const,
           properties: {
             id: event.event_id,
             name: event.name,
             alert: event.alert_level,
             type: event.event_type,
+            visual: hazardVisualKind(event.event_type),
             severity: event.severity_text,
             priority: globalWatchItems.find((item) => item.event_id === event.event_id)?.priority_score ?? 25,
           },
@@ -350,7 +376,40 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
       });
     };
     if (map.isStyleLoaded()) apply(); else map.once("load", apply);
-  }, [globalEvents, globalWatchItems, mapScope]);
+  }, [globalEvents, globalWatchItems, mapScope, selectedGlobalEventId]);
+
+  // Live global feeds often provide a source location rather than a measured
+  // hazard footprint. These badges make the hazard type immediately legible
+  // without turning a visual cue into a false impact polygon.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    globalMarkersRef.current.forEach((marker) => marker.remove());
+    globalMarkersRef.current = [];
+    if (mapScope !== "global" || !layers.hazards) return;
+
+    const visibleEvents = prioritisedGlobalEvents(globalEvents, globalWatchItems, selectedGlobalEventId);
+    visibleEvents.forEach((event) => {
+      const priority = globalWatchItems.find((item) => item.event_id === event.event_id)?.priority_score ?? 25;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `hazard-event-marker is-${hazardVisualKind(event.event_type)}${event.event_id === selectedGlobalEventId ? " is-selected" : ""}`;
+      button.setAttribute("aria-label", `Open ${event.name}, ${globalHazardLabel(event.event_type)} event`);
+      button.title = `${globalHazardLabel(event.event_type)} · ${event.name}`;
+      const glyph = document.createElement("span");
+      glyph.className = "hazard-event-marker-glyph";
+      glyph.textContent = globalHazardGlyph(event.event_type);
+      const score = document.createElement("small");
+      score.textContent = priority >= 55 ? String(priority) : "";
+      button.append(glyph, score);
+      button.addEventListener("click", () => {
+        selectGlobalEvent(event.event_id);
+        setPanel({ kind: "global-events" });
+        map.flyTo({ center: event.center, zoom: event.event_type === "TC" || event.event_type === "FL" ? 4.7 : 5.3, essential: true, duration: 900 });
+      });
+      globalMarkersRef.current.push(new maplibregl.Marker({ element: button, anchor: "center" }).setLngLat(event.center).addTo(map));
+    });
+  }, [globalEvents, globalWatchItems, layers.hazards, mapScope, selectedGlobalEventId, selectGlobalEvent, setPanel]);
 
   // Possible future impact area. It only appears when the universal time
   // control moves into forecast time and is always rendered with dashed,
@@ -445,6 +504,27 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
     };
   }, [hazardFilters.flood, layers.hazards, layers.intelligence, mapScope, offsetMinutes]);
 
+  // Rain is shown as movement rather than another large colored area. This is
+  // a directional, modeled cue for the seeded local scenario, not radar data.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !layers.intelligence || !layers.hazards || !hazardFilters.weather || mapScope !== "local") return;
+    let phase = 0;
+    const update = () => {
+      const source = map.getSource("rain-particles") as maplibregl.GeoJSONSource | undefined;
+      if (!source) return;
+      source.setData(rainParticlesGeoJSON(phase));
+      phase = (phase + 0.09) % 1;
+    };
+    if (map.isStyleLoaded()) update(); else map.once("load", update);
+    const timer = window.setInterval(update, 380);
+    return () => {
+      window.clearInterval(timer);
+      const source = map.getSource("rain-particles") as maplibregl.GeoJSONSource | undefined;
+      source?.setData({ type: "FeatureCollection", features: [] });
+    };
+  }, [hazardFilters.weather, layers.hazards, layers.intelligence, mapScope]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -514,23 +594,12 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
     markersRef.current = [];
     if (!layers.infrastructure || mapScope === "global") return;
 
-    facilities.forEach((f) => {
+    facilities.filter((facility) => ["hospital", "bridge", "gauge"].includes(facility.facility_type)).forEach((f) => {
       const el = document.createElement("button");
       el.type = "button";
+      el.className = `facility-map-marker is-${f.facility_type}`;
       el.setAttribute("aria-label", `${f.name} (${f.facility_type})`);
-      el.style.width = "26px";
-      el.style.height = "26px";
-      el.style.borderRadius = "50%";
-      el.style.border = "2px solid white";
-      el.style.boxShadow = "0 1px 4px rgba(0,0,0,0.4)";
-      el.style.background = facilityColor(f.facility_type);
-      el.style.color = "white";
-      el.style.fontSize = "11px";
-      el.style.fontWeight = "700";
-      el.style.display = "flex";
-      el.style.alignItems = "center";
-      el.style.justifyContent = "center";
-      el.style.cursor = "pointer";
+      el.style.setProperty("--facility-color", facilityColor(f.facility_type));
       el.textContent = facilityIcon(f.facility_type);
       el.addEventListener("click", () => setPanel({ kind: "place", placeId: f.facility_id }));
 
@@ -550,14 +619,14 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
     <>
       <div ref={containerRef} className="h-full w-full" role="application" aria-label="Interactive EarthPulse map of Lehigh Valley" />
       {mapScope === "local" && <div className="map-model-legend" aria-label="Modeled surface legend">
-        <span><i className="legend-rain" /> Rain field</span>
+        <span><i className="legend-rain" /> Rain direction</span>
         <span><i className="legend-flood" /> River corridor</span>
-        <span><i className="legend-ground" /> Wet slope</span>
-        <small>MODELED SURFACES · RESEARCH DEMO</small>
+        <span><i className="legend-ground" /> Alert boundary</span>
+        <small>MODELED DEMO · NOT A SURVEY</small>
       </div>}
       <div className="sr-only" aria-live="polite">
         {mapScope === "global"
-          ? `Global map showing ${globalEvents.length} official GDACS events.`
+          ? `Global map showing ${globalEvents.length} official GDACS events.${selectedGlobalEvent ? ` Selected ${globalHazardLabel(selectedGlobalEvent.event_type)}: ${selectedGlobalEvent.name}.` : ""}`
           : `Regional map showing ${incidents.length} developing incident, ${compoundEvents.flatMap((event) => event.signals).length} compound-hazard signals, ${sensors.length} sensor observations, and ${facilities.length} nearby facilities.`}
         {offsetMinutes > 0 ? ` Forecast impact view at ${offsetMinutes} minutes from now.` : " Current and observed conditions view."}
       </div>
@@ -622,13 +691,8 @@ function compoundSurfaceGeoJSON(
       geometry: riverCorridorPolygon(width),
     });
   }
-  if (filters.landslide) {
-    features.push({
-      type: "Feature",
-      properties: { group: "landslide", certainty: "simulated", label: "Wet-slope context" },
-      geometry: polygonAround([-75.389, 40.6105], 0.015, 0.0065),
-    });
-  }
+  // The seeded Bethlehem event has no sourced landslide model. Do not draw an
+  // appealing but unsupported amber footprint just because that layer exists.
   return { type: "FeatureCollection", features };
 }
 
@@ -657,6 +721,68 @@ function flowParticlesGeoJSON(phase: number, offsetMinutes: number): GeoJSON.Fea
     };
   });
   return { type: "FeatureCollection", features };
+}
+
+function rainParticlesGeoJSON(phase: number): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature<GeoJSON.LineString>[] = [];
+  const columns = 11;
+  const rows = 5;
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const travel = ((phase + row * 0.16 + column * 0.08) % 1) * 0.007;
+      const lng = -75.421 + column * 0.0084 + travel;
+      const lat = 40.66 - row * 0.0092 - travel * 0.4;
+      features.push({
+        type: "Feature",
+        properties: { meaning: "illustrative rainfall direction" },
+        geometry: { type: "LineString", coordinates: [[lng, lat], [lng + 0.0025, lat - 0.006]] },
+      });
+    }
+  }
+  return { type: "FeatureCollection", features };
+}
+
+type HazardVisualKind = "earthquake" | "flood" | "cyclone" | "wildfire" | "volcano" | "drought";
+
+function prioritisedGlobalEvents(
+  events: GlobalEvent[],
+  watchItems: Array<{ event_id: string; priority_score: number }>,
+  selectedId: string | null,
+): GlobalEvent[] {
+  const priority = new Map(watchItems.map((item) => [item.event_id, item.priority_score]));
+  const visible = [...events]
+    .sort((a, b) => (priority.get(b.event_id) ?? 0) - (priority.get(a.event_id) ?? 0))
+    .slice(0, 32);
+  const selected = events.find((event) => event.event_id === selectedId);
+  return selected && !visible.some((event) => event.event_id === selected.event_id) ? [selected, ...visible] : visible;
+}
+
+function hazardVisualKind(type: string): HazardVisualKind {
+  if (type === "EQ") return "earthquake";
+  if (type === "FL") return "flood";
+  if (type === "TC") return "cyclone";
+  if (type === "WF") return "wildfire";
+  if (type === "VO") return "volcano";
+  return "drought";
+}
+
+function globalHazardGlyph(type: string): string {
+  if (type === "EQ") return "EQ";
+  if (type === "FL") return "FL";
+  if (type === "TC") return "TC";
+  if (type === "WF") return "WF";
+  if (type === "VO") return "VO";
+  return "DR";
+}
+
+function globalHazardLabel(type: string): string {
+  if (type === "EQ") return "Earthquake";
+  if (type === "FL") return "Flood";
+  if (type === "TC") return "Tropical cyclone";
+  if (type === "WF") return "Wildfire";
+  if (type === "VO") return "Volcano";
+  if (type === "DR") return "Drought";
+  return "Hazard";
 }
 
 function uncertaintyGeoJSON(): GeoJSON.FeatureCollection {

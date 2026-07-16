@@ -228,6 +228,37 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .legend-symbol.outline { border-width: 3px; border-color: #fb7a5f; background: transparent; }
 .legend-symbol.dashed { border-style: dashed; border-color: #fbbf24; }
 .legend-symbol.dotted { border-style: dotted; border-color: #c4b5fd; }
+.legend-symbol.event { display: grid; width: 24px; height: 24px; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #dce8ed; background: #10232b; font: 800 7px var(--font-mono); letter-spacing: -.04em; }
+.legend-symbol.event.earthquake { border-color: #f5a15c; box-shadow: 0 0 0 3px rgba(245,161,92,.12), 0 0 0 6px rgba(245,161,92,.06); }
+.legend-symbol.event.flood { border-color: #4ddcf5; box-shadow: 0 3px 0 -1px rgba(77,220,245,.75), 0 6px 0 -3px rgba(77,220,245,.35); }
+.legend-symbol.event.cyclone { border-color: #c5a6ff; box-shadow: inset 0 0 0 3px rgba(197,166,255,.13); }
+.legend-symbol.rain { border: 0; border-radius: 0; background: repeating-linear-gradient(120deg, transparent 0 4px, #a9f2ff 4px 6px, transparent 6px 10px); }
+.legend-symbol.river { border-color: #54d8ec; border-radius: 999px; background: rgba(22,184,212,.28); }
+.map-legend-note { margin: 2px 0 0; border-top: 1px solid var(--border); padding-top: 8px; color: #738c97; font-size: 8px; line-height: 1.45; }
+
+.hazard-event-marker { --event-color: #8ca6b0; position: relative; display: grid; width: 31px; height: 31px; place-items: center; border: 2px solid var(--event-color); border-radius: 50%; padding: 0; color: #ecf8fb; background: rgba(8,23,29,.94); box-shadow: 0 4px 14px rgba(0,0,0,.42); cursor: pointer; transition: transform .18s ease, box-shadow .18s ease; }
+.hazard-event-marker:hover, .hazard-event-marker.is-selected { z-index: 2; transform: scale(1.14); box-shadow: 0 0 0 4px color-mix(in srgb, var(--event-color) 22%, transparent), 0 7px 20px rgba(0,0,0,.48); }
+.hazard-event-marker::before { content: ""; position: absolute; inset: -5px; border: 1px solid color-mix(in srgb, var(--event-color) 68%, transparent); border-radius: inherit; pointer-events: none; }
+.hazard-event-marker-glyph { position: relative; z-index: 1; font: 800 8px var(--font-mono); letter-spacing: -.07em; }
+.hazard-event-marker small { position: absolute; right: -7px; bottom: -7px; z-index: 2; min-width: 17px; border: 1px solid var(--event-color); border-radius: 999px; padding: 1px 3px; color: #e7f2f5; background: #0a171c; font: 800 7px var(--font-mono); }
+.hazard-event-marker.is-earthquake { --event-color: #f5a15c; }
+.hazard-event-marker.is-earthquake::before { animation: event-ring 2.2s ease-out infinite; }
+.hazard-event-marker.is-flood { --event-color: #4ddcf5; }
+.hazard-event-marker.is-flood::before { inset: -6px -4px; border-width: 1px 0 1px 0; border-radius: 48%; box-shadow: 0 5px 0 -4px color-mix(in srgb, var(--event-color) 85%, transparent), 0 -5px 0 -4px color-mix(in srgb, var(--event-color) 42%, transparent); }
+.hazard-event-marker.is-cyclone { --event-color: #c5a6ff; }
+.hazard-event-marker.is-cyclone::before { inset: -4px; border-style: dashed; border-radius: 42% 58% 54% 46%; animation: event-spin 5s linear infinite; }
+.hazard-event-marker.is-wildfire { --event-color: #ff7a68; border-radius: 45% 45% 45% 12px; transform: rotate(-45deg); }
+.hazard-event-marker.is-wildfire .hazard-event-marker-glyph, .hazard-event-marker.is-wildfire small { transform: rotate(45deg); }
+.hazard-event-marker.is-volcano { --event-color: #f3c561; border-radius: 42% 42% 20% 20%; }
+.hazard-event-marker.is-drought { --event-color: #c9b379; border-style: dashed; }
+
+.facility-map-marker { --facility-color: #6b7280; display: grid; width: 23px; height: 23px; place-items: center; border: 2px solid rgba(235,247,251,.92); border-radius: 7px; padding: 0; color: white; background: var(--facility-color); box-shadow: 0 2px 8px rgba(0,0,0,.42); cursor: pointer; font: 800 9px var(--font-mono); transition: transform .18s ease; }
+.facility-map-marker:hover { transform: scale(1.13); }
+.facility-map-marker.is-gauge { border-radius: 50%; box-shadow: 0 0 0 4px color-mix(in srgb, var(--facility-color) 16%, transparent), 0 2px 8px rgba(0,0,0,.42); }
+.facility-map-marker.is-bridge { transform: rotate(45deg); border-radius: 5px; }.facility-map-marker.is-bridge:hover { transform: rotate(45deg) scale(1.13); }.facility-map-marker.is-bridge { font-size: 0; }.facility-map-marker.is-bridge::after { content: ""; width: 9px; height: 2px; border-radius: 999px; background: white; transform: rotate(-45deg); }
+
+@keyframes event-ring { 0% { transform: scale(.65); opacity: .95; } 72%, 100% { transform: scale(1.5); opacity: 0; } }
+@keyframes event-spin { to { transform: rotate(360deg); } }
 
 .time-dock { position: absolute; z-index: 35; right: 438px; bottom: 14px; left: 15px; min-width: 470px; border: 1px solid var(--border-strong); border-radius: 14px; padding: 10px 13px 12px; background: rgba(8,19,25,.94); box-shadow: var(--shadow-lg); backdrop-filter: blur(16px); }
 .time-dock-topline { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }

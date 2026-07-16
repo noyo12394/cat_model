@@ -158,11 +158,22 @@ export function MapControls() {
 
       {legendOpen && (
         <section className="map-legend" aria-label="Map legend">
-          <div className="legend-heading"><strong>How to read the map</strong><button type="button" onClick={() => setLegendOpen(false)} aria-label="Close legend"><X size={14} /></button></div>
-          <div><span className="legend-symbol solid" /> Observed</div>
-          <div><span className="legend-symbol outline" /> Official alert</div>
-          <div><span className="legend-symbol dashed" /> Forecast</div>
-          <div><span className="legend-symbol dotted" /> AI-inferred impact</div>
+          <div className="legend-heading"><strong>{mapScope === "global" ? "Live-event symbols" : "How to read this flood scene"}</strong><button type="button" onClick={() => setLegendOpen(false)} aria-label="Close legend"><X size={14} /></button></div>
+          {mapScope === "global" ? (
+            <>
+              <div><span className="legend-symbol event earthquake">EQ</span> Earthquake: radiating ring</div>
+              <div><span className="legend-symbol event flood">FL</span> Flood: water ripple</div>
+              <div><span className="legend-symbol event cyclone">TC</span> Storm: rotating swirl</div>
+              <p className="map-legend-note">Tap a symbol for its official brief. Symbols mark the reported event location; they are not measured impact extents.</p>
+            </>
+          ) : (
+            <>
+              <div><span className="legend-symbol rain" /> Blue streaks: modeled rain direction</div>
+              <div><span className="legend-symbol river" /> Cyan corridor: modeled river path</div>
+              <div><span className="legend-symbol outline" /> Amber dashed line: alert boundary</div>
+              <p className="map-legend-note">This is a research demo. The visual explains the scenario; it is not a surveyed flood extent.</p>
+            </>
+          )}
         </section>
       )}
     </div>
