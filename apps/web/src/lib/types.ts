@@ -139,6 +139,40 @@ export interface GlobalOutlookResponse {
   error?: string | null;
 }
 
+export interface FutureForecastEvent {
+  event_id: string;
+  name: string;
+  event_type: "TC";
+  storm_type: string;
+  basin: string;
+  headline?: string | null;
+  observed_at?: string | null;
+  forecast_valid_from: string;
+  forecast_valid_to: string;
+  selected_point_at: string;
+  selected_point_center: [number, number];
+  advisory_url: string;
+  track_url: string;
+  certainty_class: "official_forecast";
+}
+
+export interface FutureOutlookResponse {
+  target_at: string;
+  horizon_hours: number;
+  availability: "available" | "unavailable";
+  availability_label: string;
+  availability_detail: string;
+  generated_at: string;
+  data_status: DataStatus;
+  items: FutureForecastEvent[];
+  source_name: string;
+  source_url: string;
+  attribution: string;
+  coverage: string;
+  limitations: string[];
+  error?: string | null;
+}
+
 export interface PlaceSearchResult {
   place_id: string;
   name: string;

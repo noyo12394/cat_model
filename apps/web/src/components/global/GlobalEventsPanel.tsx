@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, BrainCircuit, Check, ClipboardCheck, Copy, Download, ExternalLink, Globe2, ListChecks, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowUpRight, BrainCircuit, CalendarDays, Check, ClipboardCheck, Copy, Download, ExternalLink, Globe2, ListChecks, MapPin, RefreshCw, ShieldAlert, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import type { GlobalEvent } from "@/lib/types";
@@ -15,6 +15,7 @@ const TYPE_LABELS: Record<string, string> = {
 export function GlobalEventsPanel() {
   const [hazard, setHazard] = useState<(typeof HAZARDS)[number]>("ALL");
   const [copied, setCopied] = useState(false);
+  const [futureDate, setFutureDate] = useState(() => dateInputValue(new Date(Date.now() + 86_400_000)));
   const flyTo = useAppStore((state) => state.flyTo);
   const setMapScope = useAppStore((state) => state.setMapScope);
   const setPanel = useAppStore((state) => state.setPanel);
@@ -29,10 +30,17 @@ export function GlobalEventsPanel() {
     refetchInterval: 300_000,
   });
   const horizonMinutes = Math.max(0, time.offsetMinutes);
+  const futureTargetAt = `${futureDate}T12:00:00Z`;
   const outlook = useQuery({
     queryKey: ["global-outlook", horizonMinutes],
     queryFn: () => api.globalOutlook(horizonMinutes),
     staleTime: 300_000,
+  });
+  const futureOutlook = useQuery({
+    queryKey: ["future-outlook", futureTargetAt],
+    queryFn: () => api.futureOutlook(futureTargetAt),
+    staleTime: 300_000,
+    retry: 1,
   });
   const watchByEvent = useMemo(() => new Map((outlook.data?.items ?? []).map((item) => [item.event_id, item])), [outlook.data?.items]);
 
@@ -154,11 +162,49 @@ export function GlobalEventsPanel() {
             </div>
           </section>
 
+          <section className="future-explorer-card" aria-label="Future date explorer">
+            <div className="future-explorer-heading">
+              <span><CalendarDays size={15} /></span>
+              <div><span className="panel-kicker">FUTURE EXPLORER</span><h2>Official forecast coverage</h2></div>
+              <b>{futureOutlook.data?.availability ?? "checking"}</b>
+            </div>
+            <p>Choose a future UTC date. EarthPulse shows an event only when an authority has published a forecast for that date.</p>
+            <label className="future-date-field">
+              <span>CHECK DATE</span>
+              <input type="date" value={futureDate} onChange={(event) => setFutureDate(event.target.value)} aria-label="Future date to check in UTC" />
+              <em>12:00 UTC</em>
+            </label>
+            {futureOutlook.isLoading ? (
+              <div className="future-outlook-loading"><RefreshCw size={12} /> Checking published forecast products…</div>
+            ) : futureOutlook.isError || futureOutlook.data?.availability === "unavailable" ? (
+              <div className="future-outlook-unavailable">
+                <ShieldAlert size={15} /><div><strong>{futureOutlook.data?.availability_label ?? "Forecast coverage unavailable"}</strong><p>{futureOutlook.data?.availability_detail ?? "The forecast source could not be reached, so no future events are shown."}</p></div>
+              </div>
+            ) : futureOutlook.data && (
+              <>
+                <div className="future-outlook-summary"><strong>{futureOutlook.data.availability_label}</strong><span>{futureOutlook.data.availability_detail}</span></div>
+                {futureOutlook.data.items.length > 0 ? (
+                  <div className="future-track-list">
+                    {futureOutlook.data.items.map((item) => (
+                      <article key={item.event_id}>
+                        <span><MapPin size={13} /></span>
+                        <div><strong>{item.storm_type} {item.name}</strong><small>{item.basin} · official NHC forecast point valid {formatUtcShort(item.selected_point_at)}</small></div>
+                        <button type="button" onClick={() => flyTo(item.selected_point_center, 4.8)} aria-label={`Focus the official forecast position for ${item.name}`}><MapPin size={12} /> Map</button>
+                        <a href={item.advisory_url} target="_blank" rel="noreferrer" aria-label={`Open the official NHC advisory for ${item.name}`}><ExternalLink size={12} /></a>
+                      </article>
+                    ))}
+                  </div>
+                ) : <div className="future-outlook-empty">No named tropical cyclone has an official forecast point covering this date.</div>}
+                <small className="future-source-note">{futureOutlook.data.coverage} Source: <a href={futureOutlook.data.source_url} target="_blank" rel="noreferrer">{futureOutlook.data.attribution}</a>.</small>
+              </>
+            )}
+          </section>
+
           <section className="global-outlook-card" aria-label="EarthPulse global watch lens">
             <div className="global-outlook-heading">
               <span><BrainCircuit size={15} /></span>
-              <div><span className="panel-kicker">EARTHPULSE AI WATCH LENS</span><strong>{outlook.data?.horizon_label ?? "Preparing outlook…"}</strong></div>
-              <b>{outlook.data?.method ? "transparent" : "checking"}</b>
+              <div><span className="panel-kicker">LIVE EVENT VERIFICATION</span><strong>{outlook.data?.horizon_label ?? "Preparing watch window…"}</strong></div>
+              <b>{outlook.data?.method ? "triage only" : "checking"}</b>
             </div>
             <input
               type="range"
@@ -168,7 +214,7 @@ export function GlobalEventsPanel() {
               value={horizonMinutes}
               onChange={(event) => setOffsetMinutes(Number(event.target.value))}
               className="global-outlook-range"
-              aria-label="Global operating watch horizon, from now to 24 hours"
+              aria-label="Live-event verification window, from now to 24 hours"
               aria-valuetext={outlook.data?.horizon_label ?? `Next ${horizonMinutes} minutes`}
             />
             <div className="global-outlook-labels"><span>NOW</span><span>+1H</span><span>+6H</span><span>+24H</span></div>
@@ -255,4 +301,8 @@ function ageLabel(value: string) {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.floor(hours / 24)}d ago`;
+}
+
+function dateInputValue(date: Date) {
+  return date.toISOString().slice(0, 10);
 }

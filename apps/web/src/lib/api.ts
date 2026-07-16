@@ -10,6 +10,7 @@ import type {
   IncidentSummary,
   LiveEventsResponse,
   GlobalEventsResponse,
+  FutureOutlookResponse,
   GlobalOutlookResponse,
   LocationCapsule,
   ModelCard,
@@ -52,6 +53,7 @@ export const api = {
   liveEvents: () => request<LiveEventsResponse>("/live/events"),
   globalEvents: () => request<GlobalEventsResponse>("/live/global-events"),
   globalOutlook: (horizonMinutes: number) => request<GlobalOutlookResponse>(`/live/global-outlook?horizon_minutes=${Math.max(0, Math.min(1440, Math.round(horizonMinutes)))}`),
+  futureOutlook: (targetAt: string) => request<FutureOutlookResponse>(`/live/future-outlook?target_at=${encodeURIComponent(targetAt)}`),
   multiHazardOverview: () => request<MultiHazardOverview>("/live/multi-hazard"),
 
   searchPlaces: (q: string) =>

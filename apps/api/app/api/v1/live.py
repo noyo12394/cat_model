@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.adapters.gdacs import fetch_global_events
+from app.adapters.nhc import fetch_nhc_forecast_tracks
 from app.api.deps import repo_dep, settings_dep
 from app.core.config import Settings
 from app.db.memory_repository import MemoryRepository
@@ -14,8 +15,10 @@ from app.schemas.enums import DataStatus
 from app.schemas.event import Alert, HazardEvent, SensorObservation
 from app.schemas.global_event import GlobalEventCounts, GlobalEventsResponse
 from app.schemas.global_outlook import GlobalOutlookResponse
+from app.schemas.future_outlook import FutureOutlookResponse
 from app.services.compound_intelligence import build_compound_events
 from app.services.global_outlook import horizon_label, priority_for
+from app.services.future_outlook import build_future_outlook
 from app.services.source_health import get_source_health
 
 router = APIRouter(prefix="/live", tags=["live"])
@@ -90,6 +93,18 @@ async def get_global_outlook(
         source_updated_at=max((event.modified_at for event in response.items), default=None),
         items=items,
     )
+
+
+@router.get("/future-outlook", response_model=FutureOutlookResponse)
+async def get_future_outlook(target_at: datetime) -> FutureOutlookResponse:
+    """Check one future date against published, source-bounded forecast tracks.
+
+    A date is not treated as a license to predict new disasters. At present the
+    endpoint exposes official NHC named-storm tracks only; unsupported hazards
+    and horizons return an explicit unavailable result.
+    """
+    tracks = await fetch_nhc_forecast_tracks()
+    return build_future_outlook(target_at, tracks)
 
 
 @router.get("/events", response_model=LiveEventsResponse)

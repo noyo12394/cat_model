@@ -49,3 +49,15 @@ async def safe_get_json(url: str, params: dict | None = None) -> dict | list | N
     except Exception as exc:  # noqa: BLE001 - deliberately broad, feed must degrade gracefully
         logger.warning("adapter fetch failed url=%s error=%s", url, exc)
         return None
+
+
+async def safe_get_bytes(url: str, params: dict | None = None) -> bytes | None:
+    """GET a binary or XML product without letting a source outage break a view."""
+    try:
+        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+            resp = await client.get(url, params=params, headers={"User-Agent": "EarthPulse/0.1"})
+            resp.raise_for_status()
+            return resp.content
+    except Exception as exc:  # noqa: BLE001 - adapters degrade to typed unavailable responses
+        logger.warning("adapter fetch failed url=%s error=%s", url, exc)
+        return None
