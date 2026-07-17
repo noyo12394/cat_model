@@ -1,5 +1,6 @@
 import type {
   AssistantAnswer,
+  CommunitySignalsResponse,
   AssistantContext,
   CascadeResult,
   EvidenceTrail,
@@ -58,6 +59,7 @@ export const api = {
   modelWeatherOutlook: (targetAt: string, center: [number, number], locationName: string) => request<ModelWeatherOutlookResponse>(
     `/live/model-weather-outlook?target_at=${encodeURIComponent(targetAt)}&latitude=${encodeURIComponent(center[1])}&longitude=${encodeURIComponent(center[0])}&location_name=${encodeURIComponent(locationName)}`,
   ),
+  communitySignals: (eventId: string) => request<CommunitySignalsResponse>(`/live/community-signals/${encodeURIComponent(eventId)}`),
   multiHazardOverview: () => request<MultiHazardOverview>("/live/multi-hazard"),
 
   searchPlaces: (q: string) =>

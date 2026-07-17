@@ -6,6 +6,7 @@ export type AppMode = "live" | "forecast" | "replay" | "scenario-lab" | "portfol
 export type RightPanelContent =
   | { kind: "region-summary" }
   | { kind: "global-events" }
+  | { kind: "community-signals" }
   | { kind: "compound"; eventId: string }
   | { kind: "place"; placeId: string }
   | { kind: "incident"; incidentId: string }

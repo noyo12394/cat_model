@@ -12,6 +12,7 @@ import { HiddenRisksPanel } from "@/components/common/HiddenRisksPanel";
 import { SourceHealthPanel } from "@/components/common/SourceHealthPanel";
 import { CompoundIntelligencePanel } from "@/components/compound/CompoundIntelligencePanel";
 import { GlobalEventsPanel } from "@/components/global/GlobalEventsPanel";
+import { CommunitySignalsPanel } from "@/components/community/CommunitySignalsPanel";
 
 /** The right intelligence panel (section 6.3): content changes based on
  * context - no selection, place selected, event selected, route selected,
@@ -26,6 +27,8 @@ export function RightPanelHost() {
   switch (panel.kind) {
     case "global-events":
       return <GlobalEventsPanel />;
+    case "community-signals":
+      return <CommunitySignalsPanel />;
     case "compound":
       return <CompoundIntelligencePanel eventId={panel.eventId} />;
     case "place":

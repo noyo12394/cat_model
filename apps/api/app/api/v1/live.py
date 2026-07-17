@@ -7,10 +7,12 @@ from pydantic import BaseModel
 
 from app.adapters.gdacs import fetch_global_events
 from app.adapters.nhc import fetch_nhc_forecast_tracks
+from app.adapters.x_community import fetch_x_community_posts
 from app.api.deps import repo_dep, settings_dep
 from app.core.config import Settings
 from app.db.memory_repository import MemoryRepository
 from app.schemas.compound import MultiHazardOverview
+from app.schemas.community_signals import CommunitySignalsResponse
 from app.schemas.enums import DataStatus
 from app.schemas.event import Alert, HazardEvent, SensorObservation
 from app.schemas.global_event import GlobalEventCounts, GlobalEventsResponse
@@ -18,6 +20,7 @@ from app.schemas.global_outlook import GlobalOutlookResponse
 from app.schemas.future_outlook import FutureOutlookResponse
 from app.schemas.weather_model_outlook import ModelWeatherOutlookResponse
 from app.services.compound_intelligence import build_compound_events
+from app.services.community_signals import build_community_signals, unavailable_community_signals
 from app.services.global_outlook import horizon_label, priority_for
 from app.services.future_outlook import build_future_outlook
 from app.services.weather_model_outlook import build_model_weather_outlook
@@ -122,6 +125,27 @@ async def get_model_weather_outlook(
     future date into a claim that a new global disaster will happen.
     """
     return await build_model_weather_outlook(target_at, latitude, longitude, location_name)
+
+
+@router.get("/community-signals/{event_id}", response_model=CommunitySignalsResponse)
+async def get_community_signals(
+    event_id: str,
+    settings: Settings = Depends(settings_dep),
+) -> CommunitySignalsResponse:
+    """Return source-linked, unverified community language for one GDACS event.
+
+    Community posts are never joined into official alert levels, forecasts, or
+    EarthPulse watch scores. An unavailable source remains visibly unavailable.
+    """
+    feed = await fetch_global_events(settings)
+    event = next((item for item in feed.items if item.event_id == event_id), None)
+    if event is None:
+        return unavailable_community_signals(
+            event_id,
+            "The selected official event is no longer available in the current GDACS feed, so no community search was run.",
+        )
+    posts = await fetch_x_community_posts(event, settings)
+    return build_community_signals(event, posts)
 
 
 @router.get("/events", response_model=LiveEventsResponse)

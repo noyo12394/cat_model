@@ -29,6 +29,8 @@ SOURCE_REGISTRY: list[SourceDescriptor] = [
                       "https://docs.airnowapi.org/"),
     SourceDescriptor("OPENFEMA", "Historical disaster declarations", "FEMA", None,
                       "https://www.fema.gov/about/openfema/api"),
+    SourceDescriptor("X_COMMUNITY", "Community reports", "X API", "X_BEARER_TOKEN",
+                      "https://docs.x.com/x-api/posts/search-recent-posts"),
     SourceDescriptor("GOOGLE_ROUTES", "Route analysis", "Google Maps Platform",
                       "GOOGLE_MAPS_SERVER_API_KEY", "https://developers.google.com/maps/documentation/routes"),
 ]

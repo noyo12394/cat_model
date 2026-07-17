@@ -204,6 +204,36 @@ export interface ModelWeatherOutlookResponse {
   error?: string | null;
 }
 
+export interface CommunitySignal {
+  post_id: string;
+  text: string;
+  observed_at: string;
+  language?: string | null;
+  tone: "urgent_language" | "concern_language" | "neutral_language";
+  report_type: "possible_impact_report" | "possible_condition_report" | "event_mention";
+  tags: string[];
+  source_url: string;
+  certainty_class: "user_reported";
+  verification_status: "unverified";
+}
+
+export interface CommunitySignalsResponse {
+  event_id: string;
+  event_name: string;
+  event_center: [number, number];
+  availability: "available" | "unavailable";
+  availability_label: string;
+  availability_detail: string;
+  generated_at: string;
+  data_status: DataStatus;
+  items: CommunitySignal[];
+  source_name: string;
+  source_url: string;
+  method: string;
+  limitations: string[];
+  error?: string | null;
+}
+
 export interface PlaceSearchResult {
   place_id: string;
   name: string;

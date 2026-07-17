@@ -38,12 +38,19 @@ class AdapterResponse(Generic[T]):
     note: str | None = None
 
 
-async def safe_get_json(url: str, params: dict | None = None) -> dict | list | None:
+async def safe_get_json(
+    url: str,
+    params: dict | None = None,
+    headers: dict[str, str] | None = None,
+) -> dict | list | None:
     """GET JSON with a short timeout, returning None on any failure instead
     of raising. Adapters decide what "None" means for their fallback."""
     try:
+        request_headers = {"User-Agent": "EarthPulse/0.1"}
+        if headers:
+            request_headers.update(headers)
         async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
-            resp = await client.get(url, params=params, headers={"User-Agent": "EarthPulse/0.1"})
+            resp = await client.get(url, params=params, headers=request_headers)
             resp.raise_for_status()
             return resp.json()
     except Exception as exc:  # noqa: BLE001 - deliberately broad, feed must degrade gracefully

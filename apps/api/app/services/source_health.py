@@ -44,6 +44,7 @@ async def get_source_health(settings: Settings) -> list[SourceStatus]:
         "NASA_FIRMS": fire_resp,
         "AIRNOW": air_resp,
         "OPENFEMA": fema_resp,
+        "X_COMMUNITY": _x_source_status(settings),
     }
     for descriptor in SOURCE_REGISTRY:
         resp = by_key.get(descriptor.key)
@@ -71,3 +72,16 @@ async def get_source_health(settings: Settings) -> list[SourceStatus]:
             )
         )
     return results
+
+
+class _ConfiguredSource:
+    def __init__(self, status: DataStatus, note: str | None = None):
+        self.status = status
+        self.items: list[object] = []
+        self.note = note
+
+
+def _x_source_status(settings: Settings) -> _ConfiguredSource:
+    if settings.x_bearer_token:
+        return _ConfiguredSource(DataStatus.STALE, "Credential configured. Event-scoped X queries run only when an operator opens Community Signals.")
+    return _ConfiguredSource(DataStatus.UNAVAILABLE, "X_BEARER_TOKEN not configured; no community posts or synthetic sentiment are shown.")

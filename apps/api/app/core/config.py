@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     airnow_api_key: str | None = None  # AirNow API key
     openfema_base_url: str = "https://www.fema.gov/api/open"
 
+    # Community reports: read-only X API access. Without an approved Bearer
+    # Token, no social data or substitute sentiment is shown in the product.
+    x_bearer_token: str | None = None
+    x_api_base_url: str = "https://api.x.com/2"
+
     # --- Google Maps Platform (frontend consumes NEXT_PUBLIC_* directly; the
     # backend only ever needs a server-side key for Routes/Places proxying) ---
     google_maps_server_api_key: str | None = None
