@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, BrainCircuit, ChevronRight, Clock3, CloudRain, Gauge, Globe2, Hospital, Route, ShieldAlert, Sparkles, Waves } from "lucide-react";
+import { ArrowUpRight, BrainCircuit, ChevronRight, Clock3, CloudRain, Gauge, Globe2, Hospital, MessagesSquare, Route, ShieldAlert, Sparkles, Waves } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAppStore } from "@/lib/store";
 import { DisasterHeartbeat } from "@/components/common/DisasterHeartbeat";
@@ -82,6 +82,7 @@ export function RegionSummaryPanel() {
       <section className="panel-section quick-actions">
         <span className="panel-kicker">EXPLORE</span>
         <button type="button" onClick={() => { setMapScope("global"); setPanel({ kind: "global-events" }); flyTo([8, 18], 1.45); }}><Globe2 size={16} /><span><strong>Global operational picture</strong><small>Live GDACS multi-hazard events</small></span><ChevronRight size={15} /></button>
+        <button type="button" onClick={() => setPanel({ kind: "community-pulse", incidentId: "developing-flood-bethlehem" })}><MessagesSquare size={16} /><span><strong>Read the community pulse</strong><small>What people are reporting, signal vs. rumor</small></span><ChevronRight size={15} /></button>
         <button type="button" onClick={() => setPanel({ kind: "assistant", question: "What changed near Bethlehem in the last hour?" })}><Sparkles size={16} /><span><strong>What changed?</strong><small>Compare with one hour ago</small></span><ChevronRight size={15} /></button>
         <button type="button" onClick={openCompound}><BrainCircuit size={16} /><span><strong>Compare possible futures</strong><small>See what would distinguish each branch</small></span><ChevronRight size={15} /></button>
         <button type="button" onClick={() => setPanel({ kind: "hidden-risks" })}><ShieldAlert size={16} /><span><strong>Find hidden risks</strong><small>Single points of failure and weak data</small></span><ChevronRight size={15} /></button>

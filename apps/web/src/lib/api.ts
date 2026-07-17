@@ -3,6 +3,7 @@ import type {
   CommunitySignalsResponse,
   AssistantContext,
   CascadeResult,
+  CommunityPulseResponse,
   EvidenceTrail,
   HiddenRisk,
   HistoricalAnalog,
@@ -61,6 +62,8 @@ export const api = {
   ),
   communitySignals: (eventId: string) => request<CommunitySignalsResponse>(`/live/community-signals/${encodeURIComponent(eventId)}`),
   multiHazardOverview: () => request<MultiHazardOverview>("/live/multi-hazard"),
+  communityPulse: (incidentId = "developing-flood-bethlehem") =>
+    request<CommunityPulseResponse>(`/community/pulse?incident_id=${encodeURIComponent(incidentId)}`),
 
   searchPlaces: (q: string) =>
     request<{ query: string; results: PlaceSearchResult[] }>(`/places/search?q=${encodeURIComponent(q)}`),

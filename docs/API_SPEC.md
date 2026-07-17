@@ -38,6 +38,7 @@ backs each endpoint's data, and `apps/api/app/schemas/` for the exact response s
 | `/models` | GET | All model cards |
 | `/models/{model_id}/card` | GET | One model card |
 | `/risks/hidden` | GET | Find Hidden Risks ranked list |
+| `/community/pulse?incident_id=` | GET | Community Pulse sentiment analysis: deterministic concern index (weighted count of categorical sentiment tags), theme clusters, and corroborated-vs-rumor cross-check over `user_reported`/`unverified` community reports |
 
 ## Conventions
 

@@ -11,6 +11,7 @@ import { PortfolioPanel } from "@/components/portfolio/PortfolioPanel";
 import { HiddenRisksPanel } from "@/components/common/HiddenRisksPanel";
 import { SourceHealthPanel } from "@/components/common/SourceHealthPanel";
 import { CompoundIntelligencePanel } from "@/components/compound/CompoundIntelligencePanel";
+import { CommunityPulsePanel } from "@/components/community/CommunityPulsePanel";
 import { GlobalEventsPanel } from "@/components/global/GlobalEventsPanel";
 import { CommunitySignalsPanel } from "@/components/community/CommunitySignalsPanel";
 
@@ -39,6 +40,8 @@ export function RightPanelHost() {
       return <RouteRiskPanel originPlaceId={panel.originPlaceId} destinationPlaceId={panel.destinationPlaceId} />;
     case "assistant":
       return <AssistantPanel question={panel.question} />;
+    case "community-pulse":
+      return <CommunityPulsePanel incidentId={panel.incidentId} />;
     case "hidden-risks":
       return <HiddenRisksPanel />;
     case "source-health":

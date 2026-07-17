@@ -12,6 +12,7 @@ export type RightPanelContent =
   | { kind: "incident"; incidentId: string }
   | { kind: "route"; originPlaceId: string; destinationPlaceId: string }
   | { kind: "assistant"; question: string }
+  | { kind: "community-pulse"; incidentId: string }
   | { kind: "hidden-risks" }
   | { kind: "source-health" };
 

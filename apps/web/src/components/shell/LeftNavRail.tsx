@@ -11,6 +11,7 @@ import {
   FlaskConical,
   FolderKanban,
   Globe2,
+  HeartPulse,
   History,
   MapPinned,
   MessagesSquare,
@@ -62,6 +63,9 @@ export function LeftNavRail() {
         </button>
         <button type="button" className="nav-link" onClick={() => { setMapScope("global"); setPanel({ kind: "community-signals" }); }} title={collapsed ? "Community signals" : undefined}>
           <MessagesSquare size={19} aria-hidden />{!collapsed && <span>Community signals</span>}
+        </button>
+        <button type="button" className="nav-link" onClick={() => { setMapScope("local"); setPanel({ kind: "community-pulse", incidentId: "developing-flood-bethlehem" }); }} title={collapsed ? "Community pulse" : undefined}>
+          <HeartPulse size={19} aria-hidden />{!collapsed && <span>Community pulse</span>}
         </button>
         <button type="button" className="nav-link" onClick={() => setPanel({ kind: "hidden-risks" })} title={collapsed ? "Hidden risks" : undefined}>
           <MapPinned size={19} aria-hidden />{!collapsed && <span>Hidden risks</span>}

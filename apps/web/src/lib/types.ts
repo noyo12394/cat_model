@@ -671,4 +671,67 @@ export interface MultiHazardOverview {
   research_notice: string;
 }
 
+export interface CommunityReport {
+  report_id: string;
+  posted_at: string;
+  channel: string;
+  text: string;
+  location_label: string;
+  center: [number, number];
+  sentiment: "alarmed" | "concerned" | "seeking_info" | "calm" | "relieved" | string;
+  theme: string;
+  certainty: "user_reported" | "unverified" | string;
+  corroboration: "corroborated" | "uncorroborated" | "conflicts" | string;
+  corroboration_detail: string;
+}
+
+export interface SentimentBucket {
+  sentiment: string;
+  label: string;
+  count: number;
+  share: number;
+}
+
+export interface ThemeCluster {
+  theme: string;
+  label: string;
+  count: number;
+  dominant_sentiment: string;
+  example: string;
+  corroboration_note: string;
+}
+
+export interface ConcernIndex {
+  score: number;
+  band: "calm" | "watchful" | "concerned" | "alarmed" | string;
+  band_label: string;
+  trend: "rising" | "steady" | "easing" | string;
+  trend_detail: string;
+  method: string;
+}
+
+export interface CorroborationSummary {
+  corroborated: number;
+  uncorroborated: number;
+  conflicts: number;
+  note: string;
+}
+
+export interface CommunityPulseResponse {
+  incident_id: string;
+  region_label: string;
+  window_label: string;
+  generated_at: string;
+  data_status: DataStatus;
+  is_demo: boolean;
+  total_reports: number;
+  concern_index: ConcernIndex;
+  sentiment_breakdown: SentimentBucket[];
+  theme_clusters: ThemeCluster[];
+  corroboration: CorroborationSummary;
+  reports: CommunityReport[];
+  limitations: string[];
+  responsible_use: string[];
+}
+
 export type Mode = "live" | "replay";
