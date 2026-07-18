@@ -9,6 +9,7 @@ import { DisasterHeartbeat } from "@/components/common/DisasterHeartbeat";
 export function RegionSummaryPanel() {
   const { data: summary, isLoading, isError } = useQuery({ queryKey: ["live-summary"], queryFn: api.liveSummary });
   const { data: multiHazard } = useQuery({ queryKey: ["multi-hazard-overview"], queryFn: api.multiHazardOverview, staleTime: 60_000 });
+  const { data: pulse } = useQuery({ queryKey: ["community-pulse", "developing-flood-bethlehem"], queryFn: () => api.communityPulse(), staleTime: 60_000 });
   const setPanel = useAppStore((s) => s.setPanel);
   const setOffsetMinutes = useAppStore((s) => s.setOffsetMinutes);
   const flyTo = useAppStore((s) => s.flyTo);
@@ -73,6 +74,18 @@ export function RegionSummaryPanel() {
         <button type="button" onClick={() => setPanel({ kind: "source-health" })}><span className="metric-icon violet"><Hospital size={16} /></span><strong>{multiHazard?.live_feed_count ?? "—"}</strong><small>live feeds reachable</small></button>
       </section>
 
+      {pulse && (
+        <button type="button" className={`community-concern-chip band-${pulse.concern_index.band}`} onClick={() => { setMapScope("local"); setPanel({ kind: "community", view: "sentiment", incidentId: "developing-flood-bethlehem" }); }}>
+          <MessagesSquare size={15} aria-hidden />
+          <span className="concern-chip-copy">
+            <strong>Community concern: {pulse.concern_index.band_label}</strong>
+            <small>{pulse.total_reports} reports · {pulse.concern_index.trend}{pulse.corroboration.conflicts > 0 ? ` · ${pulse.corroboration.conflicts} rumor to watch` : ""}</small>
+          </span>
+          <span className="concern-chip-score">{Math.round(pulse.concern_index.score * 100)}</span>
+          <ChevronRight size={14} aria-hidden />
+        </button>
+      )}
+
       <DisasterHeartbeat
         label="Event heartbeat"
         severity="severe"
@@ -82,7 +95,7 @@ export function RegionSummaryPanel() {
       <section className="panel-section quick-actions">
         <span className="panel-kicker">EXPLORE</span>
         <button type="button" onClick={() => { setMapScope("global"); setPanel({ kind: "global-events" }); flyTo([8, 18], 1.45); }}><Globe2 size={16} /><span><strong>Global operational picture</strong><small>Live GDACS multi-hazard events</small></span><ChevronRight size={15} /></button>
-        <button type="button" onClick={() => setPanel({ kind: "community-pulse", incidentId: "developing-flood-bethlehem" })}><MessagesSquare size={16} /><span><strong>Read the community pulse</strong><small>What people are reporting, signal vs. rumor</small></span><ChevronRight size={15} /></button>
+        <button type="button" onClick={() => { setMapScope("local"); setPanel({ kind: "community", view: "sentiment", incidentId: "developing-flood-bethlehem" }); }}><MessagesSquare size={16} /><span><strong>Read the community pulse</strong><small>What people are reporting, signal vs. rumor</small></span><ChevronRight size={15} /></button>
         <button type="button" onClick={() => setPanel({ kind: "assistant", question: "What changed near Bethlehem in the last hour?" })}><Sparkles size={16} /><span><strong>What changed?</strong><small>Compare with one hour ago</small></span><ChevronRight size={15} /></button>
         <button type="button" onClick={openCompound}><BrainCircuit size={16} /><span><strong>Compare possible futures</strong><small>See what would distinguish each branch</small></span><ChevronRight size={15} /></button>
         <button type="button" onClick={() => setPanel({ kind: "hidden-risks" })}><ShieldAlert size={16} /><span><strong>Find hidden risks</strong><small>Single points of failure and weak data</small></span><ChevronRight size={15} /></button>

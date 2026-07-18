@@ -11,9 +11,8 @@ import { PortfolioPanel } from "@/components/portfolio/PortfolioPanel";
 import { HiddenRisksPanel } from "@/components/common/HiddenRisksPanel";
 import { SourceHealthPanel } from "@/components/common/SourceHealthPanel";
 import { CompoundIntelligencePanel } from "@/components/compound/CompoundIntelligencePanel";
-import { CommunityPulsePanel } from "@/components/community/CommunityPulsePanel";
+import { CommunityPanel } from "@/components/community/CommunityPanel";
 import { GlobalEventsPanel } from "@/components/global/GlobalEventsPanel";
-import { CommunitySignalsPanel } from "@/components/community/CommunitySignalsPanel";
 
 /** The right intelligence panel (section 6.3): content changes based on
  * context - no selection, place selected, event selected, route selected,
@@ -28,8 +27,6 @@ export function RightPanelHost() {
   switch (panel.kind) {
     case "global-events":
       return <GlobalEventsPanel />;
-    case "community-signals":
-      return <CommunitySignalsPanel />;
     case "compound":
       return <CompoundIntelligencePanel eventId={panel.eventId} />;
     case "place":
@@ -40,8 +37,8 @@ export function RightPanelHost() {
       return <RouteRiskPanel originPlaceId={panel.originPlaceId} destinationPlaceId={panel.destinationPlaceId} />;
     case "assistant":
       return <AssistantPanel question={panel.question} />;
-    case "community-pulse":
-      return <CommunityPulsePanel incidentId={panel.incidentId} />;
+    case "community":
+      return <CommunityPanel view={panel.view} incidentId={panel.incidentId} />;
     case "hidden-risks":
       return <HiddenRisksPanel />;
     case "source-health":

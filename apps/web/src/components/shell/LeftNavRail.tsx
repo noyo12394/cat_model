@@ -14,7 +14,6 @@ import {
   HeartPulse,
   History,
   MapPinned,
-  MessagesSquare,
   RadioTower,
   ShieldAlert,
 } from "lucide-react";
@@ -61,11 +60,8 @@ export function LeftNavRail() {
         <button type="button" className="nav-link" onClick={() => { setMapScope("global"); setOffsetMinutes(0); setPanel({ kind: "global-events" }); flyTo([8, 18], 1.45); }} title={collapsed ? "Global events" : undefined}>
           <Globe2 size={19} aria-hidden />{!collapsed && <span>Global events</span>}
         </button>
-        <button type="button" className="nav-link" onClick={() => { setMapScope("global"); setPanel({ kind: "community-signals" }); }} title={collapsed ? "Community signals" : undefined}>
-          <MessagesSquare size={19} aria-hidden />{!collapsed && <span>Community signals</span>}
-        </button>
-        <button type="button" className="nav-link" onClick={() => { setMapScope("local"); setPanel({ kind: "community-pulse", incidentId: "developing-flood-bethlehem" }); }} title={collapsed ? "Community pulse" : undefined}>
-          <HeartPulse size={19} aria-hidden />{!collapsed && <span>Community pulse</span>}
+        <button type="button" className="nav-link" onClick={() => { setMapScope("local"); setPanel({ kind: "community", view: "sentiment", incidentId: "developing-flood-bethlehem" }); }} title={collapsed ? "Community" : undefined}>
+          <HeartPulse size={19} aria-hidden />{!collapsed && <span>Community</span>}
         </button>
         <button type="button" className="nav-link" onClick={() => setPanel({ kind: "hidden-risks" })} title={collapsed ? "Hidden risks" : undefined}>
           <MapPinned size={19} aria-hidden />{!collapsed && <span>Hidden risks</span>}

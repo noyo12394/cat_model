@@ -6,13 +6,12 @@ export type AppMode = "live" | "forecast" | "replay" | "scenario-lab" | "portfol
 export type RightPanelContent =
   | { kind: "region-summary" }
   | { kind: "global-events" }
-  | { kind: "community-signals" }
   | { kind: "compound"; eventId: string }
   | { kind: "place"; placeId: string }
   | { kind: "incident"; incidentId: string }
   | { kind: "route"; originPlaceId: string; destinationPlaceId: string }
   | { kind: "assistant"; question: string }
-  | { kind: "community-pulse"; incidentId: string }
+  | { kind: "community"; view: "sentiment" | "signals"; incidentId: string }
   | { kind: "hidden-risks" }
   | { kind: "source-health" };
 

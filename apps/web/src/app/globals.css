@@ -596,6 +596,25 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .model-weather-metrics small { margin-top: 2px; color: #8179a7; font-size: 5px; }
 .model-weather-note { margin: 7px 0 0; color: #9a93b4; font-size: 6px; line-height: 1.4; }
 
+/* Unified Community surface (sentiment + signals) */
+.community-wrap { display: flex; min-height: 100%; flex-direction: column; }
+.community-switch { display: flex; gap: 4px; padding: 10px 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.015); }
+.community-switch button { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--border); border-radius: 8px; padding: 7px 8px; color: #8ba0aa; background: transparent; font-size: 9px; font-weight: 650; }
+.community-switch button.is-active { border-color: rgba(129,201,255,.4); color: #dcefff; background: rgba(129,201,255,.08); }
+.community-wrap-body { display: flex; flex: 1; flex-direction: column; }
+
+/* Community concern chip in the regional pulse */
+.community-concern-chip { display: flex; align-items: center; gap: 9px; width: 100%; border: 1px solid var(--border); border-left: 3px solid #81c9ff; border-radius: 11px; padding: 10px 11px; background: rgba(255,255,255,.02); text-align: left; }
+.community-concern-chip:hover { background: rgba(255,255,255,.04); }
+.community-concern-chip.band-calm { border-left-color: #7fd8a6; }
+.community-concern-chip.band-watchful { border-left-color: #f0c96b; }
+.community-concern-chip.band-concerned { border-left-color: #f6a94a; }
+.community-concern-chip.band-alarmed { border-left-color: #ff7a72; }
+.concern-chip-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
+.concern-chip-copy strong { font-size: 10px; }
+.concern-chip-copy small { color: #728b96; font-size: 8px; }
+.concern-chip-score { color: #d7e4ea; font: 750 15px var(--font-mono); }
+
 /* Community Pulse (sentiment) panel */
 .community-panel { display: flex; min-height: 100%; flex-direction: column; }
 .community-header { padding: 17px 17px 13px; border-bottom: 1px solid var(--border); background: radial-gradient(circle at 0 0, rgba(129,201,255,.09), transparent 44%); }
