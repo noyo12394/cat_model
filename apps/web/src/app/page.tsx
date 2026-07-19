@@ -1,5 +1,5 @@
-import { ModeSetter } from "@/components/shell/ModeSetter";
+import { RiskChainWorkspace } from "@/riskchain/RiskChainWorkspace";
 
-export default function LivePage() {
-  return <ModeSetter mode="live" panel={{ kind: "region-summary" }} />;
+export default function HomePage() {
+  return <RiskChainWorkspace />;
 }

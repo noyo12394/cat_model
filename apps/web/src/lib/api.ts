@@ -27,6 +27,11 @@ import type {
   SourceStatus,
   CatModelRunResult,
   DataCoverageItem,
+  LearnLessonSummary,
+  LearnLesson,
+  ResearchSearchResponse,
+  RoadmapResponse,
+  CopilotAnswer,
   WhatChanged,
 } from "./types";
 
@@ -120,6 +125,19 @@ export const api = {
     body: JSON.stringify(body),
   }),
   catDataCoverage: () => request<DataCoverageItem[]>("/cat/data-coverage"),
+  learnLessons: () => request<LearnLessonSummary[]>("/learn/lessons"),
+  learnLesson: (lessonId: string) => request<LearnLesson>(`/learn/lessons/${encodeURIComponent(lessonId)}`),
+  researchSearch: (query: string, hazard?: string, assetType?: string) =>
+    request<ResearchSearchResponse>("/research/search", {
+      method: "POST",
+      body: JSON.stringify({ query, hazard: hazard || null, asset_type: assetType || null }),
+    }),
+  roadmap: () => request<RoadmapResponse>("/roadmap"),
+  queryCopilot: (message: string, context?: { hazard?: string; location_label?: string; run_id?: string; interface_mode?: string }) =>
+    request<CopilotAnswer>("/copilot/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, context: { user_role: "learner", interface_mode: "guided", permissions: [], ...context } }),
+    }),
 
   uploadPortfolio: async (file: File) => {
     const form = new FormData();

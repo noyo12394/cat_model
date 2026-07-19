@@ -88,6 +88,78 @@ export interface DataCoverageItem {
   limitations: string[];
 }
 
+export interface LearnLessonSummary {
+  lesson_id: string;
+  order: number;
+  title: string;
+  one_sentence: string;
+}
+
+export interface LearnLesson extends LearnLessonSummary {
+  plain_language: string;
+  technical_definition: string;
+  formula?: string | null;
+  interactive_example: string;
+  common_mistake: string;
+  real_world_use: string;
+  platform_link: string;
+  knowledge_check: {
+    question: string;
+    options: string[];
+    answer_index: number;
+    explanation: string;
+  };
+}
+
+export interface ResearchPaperSummary {
+  paper_id: string;
+  title: string;
+  publisher: string;
+  year?: number | null;
+  hazard: string;
+  asset_type: string;
+  relevance: number;
+  peer_review_status: string;
+  human_review_status: string;
+}
+
+export interface ResearchSearchResponse {
+  query: string;
+  reformulated_terms: string[];
+  results: ResearchPaperSummary[];
+  source_status: { source: string; status: string; note: string }[];
+  notice: string;
+}
+
+export interface RoadmapMilestone {
+  stage: string;
+  name: string;
+  owner_role: string;
+  budget_band: string;
+  timeline: string;
+  acceptance_gate: string;
+  exit_criteria: string[];
+  status: string;
+}
+
+export interface RoadmapResponse {
+  stages: string[];
+  milestones: RoadmapMilestone[];
+  notice: string;
+}
+
+export interface CopilotAnswer {
+  response_type: string;
+  mode: string;
+  message: string;
+  tool_trace: { id: string; tool: string; status: string; summary: string }[];
+  citations: { source_id: string; label?: string | null; url?: string | null }[];
+  disclaimers: string[];
+  numbers_source: "approved_tools" | "none";
+  prose_source: string;
+  generated_at: string;
+}
+
 export interface TimeRange {
   start: string;
   end?: string | null;
