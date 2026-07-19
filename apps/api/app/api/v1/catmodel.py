@@ -73,6 +73,20 @@ class RunSummary(BaseModel):
     confidence: str
 
 
+class ProbabilisticPreviewRequest(BaseModel):
+    """Stateless event-set preview for serverless deployments.
+
+    The client sends the p50 from the just-returned immutable deterministic
+    result.  The approved backend event-set engine, rather than the browser or
+    an LLM, then derives the labelled AAL/OEP/AEP output.  This avoids relying
+    on in-process run storage between separate serverless invocations.
+    """
+
+    median_event_loss_usd: float = Field(gt=0.0)
+    years: int = Field(default=5000, ge=1000, le=20000)
+    seed: int = 7
+
+
 def _demo_assets_and_depths() -> tuple[list[ExposureAsset], dict[str, float]]:
     return build_demo_exposure(), DEMO_FLOOD_DEPTH_100YR_FT
 
@@ -308,6 +322,18 @@ def get_run_probabilistic(
     run = _load_run(repo, run_id)
     events = demo_flood_event_set(run.ground_up_distribution.p50_usd)
     return run_event_set(events, seed=seed, years=years)
+
+
+@router.post("/probabilistic-preview", response_model=ProbabilisticResult)
+def create_probabilistic_preview(body: ProbabilisticPreviewRequest) -> ProbabilisticResult:
+    """Derive a demonstrative flood event-set preview without volatile run lookup.
+
+    This is explicitly not a replacement for durable run persistence.  It is a
+    safe public-demo transport for the same approved event-set calculation,
+    anchored to the returned model-run median supplied by the user interface.
+    """
+    events = demo_flood_event_set(body.median_event_loss_usd)
+    return run_event_set(events, seed=body.seed, years=body.years)
 
 
 @router.post("/model-runs/{run_id}/mitigation", response_model=MitigationResult)

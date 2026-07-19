@@ -331,7 +331,9 @@ export function RiskChainWorkspace() {
       setRun(result);
       setPanel("results");
       void api.catVulnerabilityFunctions().then(setCurves).catch(() => setCurves([]));
-      void api.catProbabilisticResults(result.run_id).then(setProbabilistic).catch(() => setProbabilistic(null));
+      // This stateless backend calculation is anchored to the immutable run
+      // response, avoiding volatile in-process storage between Vercel calls.
+      void api.catProbabilisticPreview(result.ground_up_distribution.p50_usd).then(setProbabilistic).catch(() => setProbabilistic(null));
       void api.catRunLayer(result.run_id, "damage-ratio").then(setModelLayer).catch(() => setModelLayer(null));
       if (user) {
         const recent = JSON.parse(window.localStorage.getItem("riskchain-recent-runs") ?? "[]") as { run_id: string; label: string; p50: number; created_at: string }[];

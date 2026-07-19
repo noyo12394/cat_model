@@ -133,6 +133,11 @@ export const api = {
   catVulnerabilityFunctions: () => request<VulnerabilityFunction[]>("/cat/vulnerability-functions"),
   catProbabilisticResults: (runId: string, years = 5000) =>
     request<ProbabilisticResult>(`/cat/model-runs/${encodeURIComponent(runId)}/probabilistic?years=${years}`),
+  catProbabilisticPreview: (medianEventLossUsd: number, years = 5000) =>
+    request<ProbabilisticResult>("/cat/probabilistic-preview", {
+      method: "POST",
+      body: JSON.stringify({ median_event_loss_usd: medianEventLossUsd, years }),
+    }),
   catRunLayer: (runId: string, layerId: "damage-ratio" | "flood-depth" | "ground-up-loss" | "insured-loss") =>
     request<ModelResultLayer>(`/cat/model-runs/${encodeURIComponent(runId)}/layers/${layerId}`),
   learnLessons: () => request<LearnLessonSummary[]>("/learn/lessons"),
