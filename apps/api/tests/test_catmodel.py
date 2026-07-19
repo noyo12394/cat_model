@@ -17,6 +17,7 @@ from app.services.cat.financial import apply_terms_amount
 from app.services.cat.probabilistic import analytic_aal, demo_flood_event_set, run_event_set
 from app.services.cat.run import run_flood_scenario
 from app.services.cat.vulnerability import VULNERABILITY_FUNCTIONS, mean_damage_ratio, select_function
+from app.db.memory_repository import MemoryRepository
 
 
 # --- Vulnerability -----------------------------------------------------------
@@ -152,6 +153,49 @@ def test_model_run_endpoint_roundtrip():
     mit = client.post(f"/api/v1/cat/model-runs/{run_id}/mitigation?option_id=mit-elevate-2ft")
     assert mit.status_code == 200 and mit.json()["avoided_loss_usd"] >= 0
     assert client.get("/api/v1/cat/model-runs/does-not-exist").status_code == 404
+
+
+def test_operational_job_layers_report_compare_and_capability_contracts():
+    client = TestClient(app)
+    job_response = client.post("/api/v1/cat/jobs", json={"iterations": 300})
+    assert job_response.status_code == 202
+    job = job_response.json()
+    assert job["state"] == "succeeded" and job["execution_mode"] == "inline_demo"
+    assert client.get(f"/api/v1/cat/jobs/{job['job_id']}/result").status_code == 200
+
+    baseline = client.post("/api/v1/cat/model-runs", json={"iterations": 300}).json()
+    comparison = client.post(
+        "/api/v1/cat/model-runs",
+        json={"iterations": 300, "deductible_usd": 100000, "parent_run_id": baseline["run_id"]},
+    ).json()
+    compared = client.post(
+        f"/api/v1/cat/model-runs/{baseline['run_id']}/compare",
+        params={"comparison_run_id": comparison["run_id"]},
+    )
+    assert compared.status_code == 200
+    assert any("deductible_usd" in value for value in compared.json()["changed_assumptions"])
+
+    layer = client.get(f"/api/v1/cat/model-runs/{baseline['run_id']}/layers/damage-ratio")
+    assert layer.status_code == 200
+    assert layer.json()["geojson"]["type"] == "FeatureCollection"
+    assert layer.json()["geojson"]["features"]
+
+    report = client.post(
+        f"/api/v1/cat/model-runs/{baseline['run_id']}/reports",
+        params={"report_type": "technical"},
+    )
+    assert report.status_code == 200
+    assert report.json()["manifest"]["run_id"] == baseline["run_id"]
+
+    coverage = client.get("/api/v1/cat/capabilities").json()
+    assert coverage == {**coverage, "implemented": 8, "partial": 8, "not_started": 0, "total": 16}
+
+
+def test_cat_run_records_are_immutable():
+    repo = MemoryRepository()
+    repo.save_cat_run("run-1", {"value": 1})
+    with pytest.raises(ValueError, match="immutable"):
+        repo.save_cat_run("run-1", {"value": 2})
 
 
 def test_registry_lists_only_labelled_models():

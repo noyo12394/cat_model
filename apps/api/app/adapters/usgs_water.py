@@ -1,10 +1,9 @@
-"""USGS Water Data adapter: recent streamflow / gauge height.
+"""USGS Water Data OGC adapter: latest gauge-height observations.
 
-Real endpoint: GET {USGS_WATER_BASE_URL}/iv/?format=json&stateCd=pa&parameterCd=00065
-No API key required. On failure, falls back to the two seeded demo gauges
-(Monocacy Creek, Lehigh River near Bethlehem).
-
-Env vars: ``USGS_WATER_BASE_URL`` (default https://waterservices.usgs.gov/nwis).
+Real endpoint: ``/collections/latest-continuous/items`` with parameter 00065.
+No API key is required. Provisional readings preserve their USGS approval
+status as a quality flag. On failure, the response falls back to two clearly
+labelled demonstration gauges for the Bethlehem scenario.
 """
 
 from __future__ import annotations
@@ -19,30 +18,33 @@ from app.schemas.enums import DataStatus, SourceName
 from app.schemas.event import SensorObservation
 
 
-def _map_series(series: dict) -> SensorObservation | None:
+STATE_FIPS = {"pa": "42"}
+
+
+def _map_feature(feature: dict) -> SensorObservation | None:
     try:
-        site = series["sourceInfo"]
-        values = series["values"][0]["value"]
-        if not values:
-            return None
-        latest = values[-1]
-        lat = float(site["geoLocation"]["geogLocation"]["latitude"])
-        lon = float(site["geoLocation"]["geogLocation"]["longitude"])
+        properties = feature["properties"]
+        coordinates = feature["geometry"]["coordinates"]
+        location_id = str(properties["monitoring_location_id"])
+        site_id = location_id.removeprefix("USGS-")
+        observed_at = properties["time"]
+        approval = str(properties.get("approval_status") or "unknown")
         return SensorObservation(
-            id=f"usgs-{site['siteCode'][0]['value']}",
-            sensor_id=site["siteCode"][0]["value"],
-            sensor_name=site["siteName"],
+            id=f"usgs-{site_id}",
+            sensor_id=site_id,
+            sensor_name=str(properties.get("monitoring_location_name") or f"USGS gauge {site_id}"),
             sensor_type="river_gauge",
-            geometry=GeoPoint(coordinates=(lon, lat)),
-            observed_at=latest["dateTime"],
-            value=float(latest["value"]),
-            unit="ft",
+            geometry=GeoPoint(coordinates=(float(coordinates[0]), float(coordinates[1]))),
+            observed_at=observed_at,
+            value=float(properties["value"]),
+            unit=str(properties.get("unit_of_measure") or "unknown"),
+            quality_flags=[f"USGS approval status: {approval}"],
             provenance=Provenance(
                 source=SourceName.USGS_WATER,
                 source_organization="U.S. Geological Survey",
-                source_url=f"https://waterdata.usgs.gov/monitoring-location/{site['siteCode'][0]['value']}",
+                source_url=f"https://waterdata.usgs.gov/monitoring-location/{site_id}/",
                 license="Public domain (U.S. Government)",
-                observed_at=latest["dateTime"],
+                observed_at=observed_at,
                 retrieved_at=datetime.now(timezone.utc),
                 data_status=DataStatus.LIVE,
             ),
@@ -54,13 +56,20 @@ def _map_series(series: dict) -> SensorObservation | None:
 async def fetch_gauge_heights(
     settings: Settings, state: str = "pa"
 ) -> AdapterResponse[SensorObservation]:
+    state_code = STATE_FIPS.get(state.lower())
+    if state_code is None:
+        return AdapterResponse(
+            source_name="USGS_WATER",
+            status=DataStatus.UNAVAILABLE,
+            items=[],
+            note=f"Unsupported state code '{state}'; this MVP currently configures Pennsylvania only.",
+        )
     payload = await safe_get_json(
-        f"{settings.usgs_water_base_url}/iv/",
-        {"format": "json", "stateCd": state, "parameterCd": "00065", "siteStatus": "active"},
+        f"{settings.usgs_water_base_url}/collections/latest-continuous/items",
+        {"f": "json", "state_code": state_code, "parameter_code": "00065", "limit": 500},
     )
     if payload and isinstance(payload, dict):
-        series_list = payload.get("value", {}).get("timeSeries", [])
-        obs = [o for o in (_map_series(s) for s in series_list) if o]
+        obs = [o for o in (_map_feature(item) for item in payload.get("features", [])) if o]
         if obs:
             return AdapterResponse(source_name="USGS_WATER", status=DataStatus.LIVE, items=obs)
 

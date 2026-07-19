@@ -26,6 +26,7 @@ Hazard → Exposure → Vulnerability → Damage → Financial
 | Mitigation | `services/cat/mitigation.py` | avoided-loss comparison |
 | Registry | `services/cat/model_registry.py` | model cards + approval status |
 | Orchestrator | `services/cat/run.py` | immutable `CatModelRunResult` + manifest |
+| Operational views | `services/cat/operational.py` | comparisons, GeoJSON, reports, data coverage and delivery audit |
 
 ## Hazard inputs
 
@@ -104,6 +105,15 @@ false-precise figure (principle 2.3). Runs are reproducible from their seed.
 - **Scientific-behaviour tests** (`tests/test_catmodel.py`) assert monotonic
   damage, zero-exposure/zero-hazard → zero loss, deductible/limit sanity,
   AEP ≥ OEP, and VaR monotonicity.
+
+## Operational API boundary
+
+Every comparison, result layer and report is derived from a stored immutable
+run; no language model supplies scientific values. The public serverless demo
+implements a queue-compatible job contract but executes its small calculation
+inline and declares that mode in the response. Production persistence and
+workers remain a planned Postgres/PostGIS + Redis/background-worker migration,
+not a capability claimed by this release.
 
 ## What this MVP is NOT
 

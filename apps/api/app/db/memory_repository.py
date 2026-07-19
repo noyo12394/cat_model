@@ -32,6 +32,7 @@ class MemoryRepository:
         self._portfolios: dict[str, dict] = {}
         # Immutable CAT model runs, keyed by run_id (rule 13: never overwrite).
         self._cat_runs: dict[str, object] = {}
+        self._cat_jobs: dict[str, object] = {}
 
     # -- scenarios --------------------------------------------------------
     def save_scenario(self, scenario: Scenario) -> None:
@@ -48,6 +49,8 @@ class MemoryRepository:
 
     # -- CAT model runs (immutable) ---------------------------------------
     def save_cat_run(self, run_id: str, result: object) -> None:
+        if run_id in self._cat_runs:
+            raise ValueError(f"CAT run {run_id} is immutable and already exists")
         self._cat_runs[run_id] = result
 
     def get_cat_run(self, run_id: str) -> object | None:
@@ -55,6 +58,15 @@ class MemoryRepository:
 
     def list_cat_runs(self) -> list[object]:
         return list(self._cat_runs.values())
+
+    # -- CAT jobs (queue-compatible contract; inline in demo runtime) -----
+    def save_cat_job(self, job_id: str, job: object) -> None:
+        if job_id in self._cat_jobs:
+            raise ValueError(f"CAT job {job_id} is immutable and already exists")
+        self._cat_jobs[job_id] = job
+
+    def get_cat_job(self, job_id: str) -> object | None:
+        return self._cat_jobs.get(job_id)
 
     # -- portfolio (tenant-isolated by portfolio_id token) -----------------
     def save_portfolio(self, portfolio_id: str, data: dict) -> None:

@@ -35,6 +35,7 @@ backs each endpoint's data, and `apps/api/app/schemas/` for the exact response s
 | `/portfolio/{id}/exposure` | GET | Re-fetch a portfolio's exposure summary |
 | `/assistant/query` | POST | Grounded AI Assistant |
 | `/sources/status` | GET | Source Health page data |
+| `/sources/registry` | GET | Governed source matrix: access, licence summary, update cadence, resolution, attribution, fallback and quality notes |
 | `/models` | GET | All model cards |
 | `/models/{model_id}/card` | GET | One model card |
 | `/risks/hidden` | GET | Find Hidden Risks ranked list |
@@ -44,16 +45,31 @@ backs each endpoint's data, and `apps/api/app/schemas/` for the exact response s
 | `/cat/models` | GET | CAT model registry (cards + approval status) |
 | `/cat/models/{model_id}` | GET | One model card |
 | `/cat/mitigation-options` | GET | Available mitigation interventions |
+| `/cat/jobs` | POST | Queue-compatible run submission; the public demo truthfully reports `inline_demo` execution |
+| `/cat/jobs/{id}` | GET | Job state, progress, run link and runtime limitations |
+| `/cat/jobs/{id}/result` | GET | Completed immutable result or a conflict response while incomplete |
 | `/cat/model-runs` | POST | Run the full deterministic flood loss chain; returns immutable run + manifest |
 | `/cat/model-runs` | GET | List run summaries |
 | `/cat/model-runs/{id}` | GET | Full run result (damage, financial, audit, confidence, sources, limitations) |
 | `/cat/model-runs/{id}/uncertainty` | GET | Ground-up / gross / net loss distributions + confidence |
+| `/cat/model-runs/{id}/manifest` | GET | Exact reproducibility manifest |
+| `/cat/model-runs/{id}/audit` | GET | Model-auditor findings and limitations |
+| `/cat/model-runs/{id}/layers` | GET | Available result-layer catalogue |
+| `/cat/model-runs/{id}/layers/{layer_id}` | GET | GeoJSON derived from that immutable run's asset results |
+| `/cat/model-runs/{id}/compare?comparison_run_id=` | POST | Recorded-output and changed-assumption comparison; no hidden recalculation |
+| `/cat/model-runs/{id}/reports?report_type=` | POST | Structured executive, technical, underwriting or public report with manifest and citations |
 | `/cat/model-runs/{id}/probabilistic?years=&seed=` | GET | Event-set AAL / OEP / AEP / VaR / TVaR anchored to the run |
 | `/cat/model-runs/{id}/mitigation?option_id=` | POST | Avoided-loss comparison for one intervention |
+| `/cat/data-coverage` | GET | Layer-by-layer availability, origin, resolution, use and limitations |
+| `/cat/capabilities` | GET | Truthful 16-deliverable implementation audit for the current release |
 
 See `docs/CAT_MODEL_SPEC.md` for the scientific specification. Every CAT result
 is `data_status: demo`; losses are ranges, not single values; no LLM computes
 any number.
+
+The public deployment intentionally uses an in-process demonstration repository.
+Its job records are queue-compatible but not durable across serverless cold starts;
+the returned `execution_mode` and limitations make that boundary machine-readable.
 
 ## Conventions
 

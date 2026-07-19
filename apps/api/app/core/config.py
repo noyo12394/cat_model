@@ -25,7 +25,9 @@ class Settings(BaseSettings):
 
     # --- Live data adapters: all optional, mock fallback if unset ---
     nws_base_url: str = "https://api.weather.gov"
-    usgs_water_base_url: str = "https://waterservices.usgs.gov/nwis"
+    # Modern USGS Water Data OGC API. The legacy waterservices endpoints are
+    # scheduled for retirement, so new integrations must not depend on them.
+    usgs_water_base_url: str = "https://api.waterdata.usgs.gov/ogcapi/v0"
     usgs_quake_base_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0"
     gdacs_base_url: str = "https://www.gdacs.org/gdacsapi/api"
     firms_map_key: str | None = None  # NASA FIRMS MAP_KEY

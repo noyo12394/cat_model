@@ -8,7 +8,11 @@ contracts are shaped to allow.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import uuid
+from datetime import datetime, timezone
+from typing import Literal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.api.deps import repo_dep
@@ -19,16 +23,29 @@ from app.data.demo.lehigh_valley_exposure import (
 from app.db.memory_repository import MemoryRepository
 from app.schemas.catmodel import (
     CatModelRunResult,
+    CapabilityCoverage,
+    DataCoverageItem,
     ExposureAsset,
     FinancialTerms,
     MitigationOption,
     MitigationResult,
+    ModelResultLayer,
+    ModelRunComparison,
+    ModelRunJob,
     ModelRegistryEntry,
     ProbabilisticResult,
+    StructuredRunReport,
     VulnerabilityFunction,
 )
 from app.services.cat.mitigation import MITIGATION_OPTIONS, evaluate_mitigation
 from app.services.cat.model_registry import get_model, list_models
+from app.services.cat.operational import (
+    build_report,
+    capability_coverage,
+    compare_runs,
+    data_coverage,
+    result_layer,
+)
 from app.services.cat.probabilistic import demo_flood_event_set, run_event_set
 from app.services.cat.run import run_flood_scenario
 from app.services.cat.vulnerability import VULNERABILITY_FUNCTIONS
@@ -115,6 +132,70 @@ def create_model_run(
     return result
 
 
+@router.post("/jobs", response_model=ModelRunJob, status_code=status.HTTP_202_ACCEPTED)
+def create_model_run_job(
+    body: RunRequest,
+    repo: MemoryRepository = Depends(repo_dep),
+) -> ModelRunJob:
+    """Queue-compatible model-run contract.
+
+    The public Vercel demonstration executes the calculation inline and says so
+    explicitly. A production worker can retain this response shape while
+    changing ``execution_mode`` and progressing through queued/running states.
+    """
+    if body.parent_run_id is not None and repo.get_cat_run(body.parent_run_id) is None:
+        raise HTTPException(status_code=404, detail="parent_run_id not found")
+    submitted = datetime.now(timezone.utc)
+    assets, depths = _demo_assets_and_depths()
+    result = run_flood_scenario(
+        assets,
+        depths,
+        FinancialTerms(
+            deductible_usd=body.deductible_usd,
+            limit_usd=body.limit_usd,
+            coinsurance=body.coinsurance,
+        ),
+        scenario_label=body.scenario_label,
+        region_label=REGION_LABEL,
+        seed=body.seed,
+        iterations=body.iterations,
+        parent_run_id=body.parent_run_id,
+    )
+    repo.save_cat_run(result.run_id, result)
+    job = ModelRunJob(
+        job_id=f"job-{uuid.uuid4().hex[:12]}",
+        state="succeeded",
+        progress_percent=100,
+        submitted_at=submitted,
+        completed_at=datetime.now(timezone.utc),
+        execution_mode="inline_demo",
+        run_id=result.run_id,
+        limitations=[
+            "This deployment executes the small demonstration run inline; it is not a durable background queue.",
+            "Job and run records are in process memory and may not survive a serverless cold start.",
+        ],
+    )
+    repo.save_cat_job(job.job_id, job)
+    return job
+
+
+@router.get("/jobs/{job_id}", response_model=ModelRunJob)
+def get_model_run_job(job_id: str, repo: MemoryRepository = Depends(repo_dep)) -> ModelRunJob:
+    job = repo.get_cat_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Model job not found")
+    assert isinstance(job, ModelRunJob)
+    return job
+
+
+@router.get("/jobs/{job_id}/result", response_model=CatModelRunResult)
+def get_model_run_job_result(job_id: str, repo: MemoryRepository = Depends(repo_dep)) -> CatModelRunResult:
+    job = get_model_run_job(job_id, repo)
+    if job.state != "succeeded" or not job.run_id:
+        raise HTTPException(status_code=409, detail="Model job has no completed result")
+    return _load_run(repo, job.run_id)
+
+
 @router.get("/model-runs", response_model=list[RunSummary])
 def list_model_runs(repo: MemoryRepository = Depends(repo_dep)) -> list[RunSummary]:
     runs: list[RunSummary] = []
@@ -155,6 +236,67 @@ def get_run_uncertainty(run_id: str, repo: MemoryRepository = Depends(repo_dep))
     }
 
 
+@router.get("/model-runs/{run_id}/manifest")
+def get_run_manifest(run_id: str, repo: MemoryRepository = Depends(repo_dep)) -> dict:
+    return _load_run(repo, run_id).manifest.model_dump(mode="json")
+
+
+@router.get("/model-runs/{run_id}/audit")
+def get_run_audit(run_id: str, repo: MemoryRepository = Depends(repo_dep)) -> dict:
+    run = _load_run(repo, run_id)
+    return {
+        "run_id": run.run_id,
+        "confidence": run.confidence,
+        "findings": run.audit_findings,
+        "limitations": run.limitations,
+    }
+
+
+@router.get("/model-runs/{run_id}/layers")
+def list_run_layers(run_id: str, repo: MemoryRepository = Depends(repo_dep)) -> dict:
+    _load_run(repo, run_id)
+    return {
+        "run_id": run_id,
+        "layers": [
+            {"layer_id": "flood-depth", "title": "Modelled flood depth at asset", "unit": "ft"},
+            {"layer_id": "damage-ratio", "title": "Mean structural damage ratio", "unit": "ratio"},
+            {"layer_id": "ground-up-loss", "title": "Ground-up loss by asset", "unit": "USD"},
+            {"layer_id": "insured-loss", "title": "Net insured loss by asset", "unit": "USD"},
+        ],
+    }
+
+
+@router.get("/model-runs/{run_id}/layers/{layer_id}", response_model=ModelResultLayer)
+def get_run_layer(
+    run_id: str,
+    layer_id: str,
+    repo: MemoryRepository = Depends(repo_dep),
+) -> ModelResultLayer:
+    run = _load_run(repo, run_id)
+    try:
+        return result_layer(run, layer_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Result layer not found") from exc
+
+
+@router.post("/model-runs/{run_id}/compare", response_model=ModelRunComparison)
+def compare_model_runs(
+    run_id: str,
+    comparison_run_id: str = Query(..., min_length=1),
+    repo: MemoryRepository = Depends(repo_dep),
+) -> ModelRunComparison:
+    return compare_runs(_load_run(repo, run_id), _load_run(repo, comparison_run_id))
+
+
+@router.post("/model-runs/{run_id}/reports", response_model=StructuredRunReport)
+def create_run_report(
+    run_id: str,
+    report_type: Literal["executive", "technical", "underwriting", "public"] = "technical",
+    repo: MemoryRepository = Depends(repo_dep),
+) -> StructuredRunReport:
+    return build_report(_load_run(repo, run_id), report_type)
+
+
 @router.get("/model-runs/{run_id}/probabilistic", response_model=ProbabilisticResult)
 def get_run_probabilistic(
     run_id: str,
@@ -180,3 +322,13 @@ def run_mitigation(
         raise HTTPException(status_code=404, detail="Mitigation option not found")
     assets, depths = _demo_assets_and_depths()
     return evaluate_mitigation(option, assets, depths)
+
+
+@router.get("/data-coverage", response_model=list[DataCoverageItem])
+def get_data_coverage() -> list[DataCoverageItem]:
+    return data_coverage()
+
+
+@router.get("/capabilities", response_model=CapabilityCoverage)
+def get_capability_coverage() -> CapabilityCoverage:
+    return capability_coverage()

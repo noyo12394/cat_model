@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -311,3 +312,107 @@ class ModelRegistryEntry(BaseModel):
     known_limitations: list[str]
     approval_status: ApprovalStatus
     not_intended_for: list[str]
+
+
+# --- Operational API contracts ---------------------------------------------
+
+class JobState(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
+class ModelRunJob(BaseModel):
+    """Long-running-model contract, executed inline only in the demo runtime.
+
+    The shape is queue-compatible, but ``execution_mode`` prevents the Vercel
+    demonstration from pretending it has a durable worker when it does not.
+    """
+
+    job_id: str
+    state: JobState
+    progress_percent: int = Field(ge=0, le=100)
+    submitted_at: datetime
+    completed_at: datetime | None = None
+    execution_mode: Literal["inline_demo", "background_worker"]
+    run_id: str | None = None
+    error: str | None = None
+    limitations: list[str] = Field(default_factory=list)
+
+
+class RunComparisonMetric(BaseModel):
+    metric: str
+    baseline_value: float
+    comparison_value: float
+    absolute_change: float
+    percent_change: float | None
+    unit: str
+
+
+class ModelRunComparison(BaseModel):
+    baseline_run_id: str
+    comparison_run_id: str
+    metrics: list[RunComparisonMetric]
+    changed_assumptions: list[str]
+    interpretation: list[str]
+    limitations: list[str]
+
+
+class ModelResultLayer(BaseModel):
+    run_id: str
+    layer_id: str
+    title: str
+    geometry_type: str
+    data_status: DataStatus
+    geojson: dict[str, Any]
+    value_field: str
+    value_unit: str
+    provenance_note: str
+    limitations: list[str]
+
+
+class ReportSection(BaseModel):
+    section_id: str
+    title: str
+    statements: list[str]
+    data_references: list[str] = Field(default_factory=list)
+
+
+class StructuredRunReport(BaseModel):
+    report_id: str
+    run_id: str
+    report_type: Literal["executive", "technical", "underwriting", "public"]
+    generated_at: datetime
+    title: str
+    sections: list[ReportSection]
+    citations: list[Provenance]
+    manifest: ModelRunManifest
+    limitations: list[str]
+
+
+class DataCoverageItem(BaseModel):
+    layer_id: str
+    label: str
+    availability: Literal["available_demo", "available_live", "unavailable"]
+    use_in_run: str
+    source: str
+    geographic_resolution: str
+    temporal_resolution: str
+    attribute_origin: AttributeOrigin
+    limitations: list[str]
+
+
+class CapabilityStatus(BaseModel):
+    deliverable: str
+    status: Literal["implemented", "partial", "not_started"]
+    evidence: list[str]
+    next_gap: str | None = None
+
+
+class CapabilityCoverage(BaseModel):
+    implemented: int
+    partial: int
+    not_started: int
+    total: int
+    capabilities: list[CapabilityStatus]
