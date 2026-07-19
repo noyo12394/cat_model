@@ -382,6 +382,8 @@ export interface PlaceSearchResult {
   place_id: string;
   name: string;
   center: [number, number];
+  provider?: string;
+  data_status?: DataStatus;
 }
 
 export interface NearbyCondition {

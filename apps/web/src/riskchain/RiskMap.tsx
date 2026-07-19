@@ -7,7 +7,7 @@ type Selection = {
   id: string;
   title: string;
   subtitle: string;
-  status: "Observed" | "Officially reported" | "Demo";
+  status: "Observed" | "Officially reported" | "Demo" | "Geocoded location";
   source: string;
   center: [number, number];
 };
@@ -17,6 +17,7 @@ type Props = {
   scope: "global" | "local";
   operationsMode: boolean;
   hazard: string;
+  focus?: [number, number] | null;
   onSelect: (selection: Selection) => void;
   onProvider: (provider: "google" | "open") => void;
 };
@@ -54,7 +55,7 @@ function eventColor(event: GlobalEvent) {
   return "#188038";
 }
 
-export function RiskMap({ events, scope, operationsMode, hazard, onSelect, onProvider }: Props) {
+export function RiskMap({ events, scope, operationsMode, hazard, focus, onSelect, onProvider }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const onSelectRef = useRef(onSelect);
 
@@ -75,9 +76,10 @@ export function RiskMap({ events, scope, operationsMode, hazard, onSelect, onPro
           await loadGoogle(apiKey);
           if (!active || !window.google) return;
           onProvider("google");
+          const googleCenter = focus ? { lat: focus[1], lng: focus[0] } : scope === "global" ? { lat: 18, lng: 5 } : { lat: 40.6259, lng: -75.3705 };
           const map = new google.maps.Map(container, {
-            center: scope === "global" ? { lat: 18, lng: 5 } : { lat: 40.6259, lng: -75.3705 },
-            zoom: scope === "global" ? 2 : 13,
+            center: googleCenter,
+            zoom: focus ? 14 : scope === "global" ? 2 : 13,
             mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID",
             streetViewControl: false,
             mapTypeControl: false,
@@ -128,8 +130,8 @@ export function RiskMap({ events, scope, operationsMode, hazard, onSelect, onPro
         style: operationsMode
           ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
           : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-        center: scope === "global" ? [5, 18] : [-75.3705, 40.6259],
-        zoom: scope === "global" ? 1.75 : 12.4,
+        center: focus ?? (scope === "global" ? [5, 18] : [-75.3705, 40.6259]),
+        zoom: focus ? 14 : scope === "global" ? 1.75 : 12.4,
         attributionControl: false,
       });
       mapLibre.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
@@ -170,7 +172,7 @@ export function RiskMap({ events, scope, operationsMode, hazard, onSelect, onPro
       mapLibre?.remove();
       container?.replaceChildren();
     };
-  }, [events, hazard, onProvider, operationsMode, scope]);
+  }, [events, focus, hazard, onProvider, operationsMode, scope]);
 
   return <div ref={ref} className="risk-map" role="application" aria-label="Interactive catastrophe risk map" />;
 }

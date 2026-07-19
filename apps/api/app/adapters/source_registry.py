@@ -29,6 +29,20 @@ class SourceDescriptor:
 
 SOURCE_REGISTRY: list[SourceDescriptor] = [
     SourceDescriptor(
+        "NOMINATIM", "Submitted place search", "OpenStreetMap Nominatim", None,
+        "https://nominatim.org/release-docs/latest/api/Search/",
+        license_summary="OpenStreetMap data under ODbL; public Nominatim usage policy applies",
+        commercial_use_status="prototype_low_volume_only",
+        update_frequency="Provider controlled; requested only on explicit submit",
+        geographic_coverage="Global OpenStreetMap coverage",
+        spatial_resolution="Matched OSM feature or address point",
+        temporal_resolution="Current provider index",
+        required_attribution="© OpenStreetMap contributors",
+        quality_notes="A geocoded position is not a hazard observation, exposure record, or risk result.",
+        fallback_source="No guessed location; return no results",
+        terms_url="https://operations.osmfoundation.org/policies/nominatim/",
+    ),
+    SourceDescriptor(
         "GDACS", "Global multi-hazard events", "UN–European Commission GDACS", None,
         "https://www.gdacs.org/gdacsapi/swagger/index.html",
         license_summary="GDACS terms-controlled indicative information supplied as-is",

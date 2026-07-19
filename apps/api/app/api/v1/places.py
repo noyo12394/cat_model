@@ -3,7 +3,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app.api.deps import repo_dep
+from app.adapters.nominatim import geocode_address
+from app.api.deps import repo_dep, settings_dep
+from app.core.config import Settings
 from app.db.memory_repository import MemoryRepository
 from app.schemas.place import LocationCapsule
 from app.services.location_capsule import build_location_capsule
@@ -15,6 +17,8 @@ class PlaceSearchResult(BaseModel):
     place_id: str
     name: str
     center: tuple[float, float]
+    provider: str = "RiskChain place directory"
+    data_status: str = "demo"
 
 
 class PlaceSearchResponse(BaseModel):
@@ -23,17 +27,32 @@ class PlaceSearchResponse(BaseModel):
 
 
 @router.get("/search", response_model=PlaceSearchResponse)
-def search_places(
+async def search_places(
     q: str = Query(..., min_length=1, max_length=200),
     repo: MemoryRepository = Depends(repo_dep),
+    settings: Settings = Depends(settings_dep),
 ) -> PlaceSearchResponse:
     matches = repo.search_places(q)
-    return PlaceSearchResponse(
-        query=q,
-        results=[
+    if matches:
+        results = [
             PlaceSearchResult(place_id=m["place_id"], name=m["name"], center=m["center"])
             for m in matches
-        ],
+        ]
+    else:
+        geocoded = await geocode_address(q, settings)
+        results = [
+            PlaceSearchResult(
+                place_id=m.place_id,
+                name=m.name,
+                center=m.center,
+                provider=m.provider,
+                data_status=m.data_status,
+            )
+            for m in geocoded
+        ]
+    return PlaceSearchResponse(
+        query=q,
+        results=results,
     )
 
 

@@ -45,6 +45,10 @@ async def get_source_health(settings: Settings) -> list[SourceStatus]:
         "AIRNOW": air_resp,
         "OPENFEMA": fema_resp,
         "X_COMMUNITY": _x_source_status(settings),
+        "NOMINATIM": _ConfiguredSource(
+            DataStatus.LIVE,
+            "Submit-only place search is configured; results remain provider-labelled and are not hazard observations.",
+        ),
     }
     for descriptor in SOURCE_REGISTRY:
         resp = by_key.get(descriptor.key)
