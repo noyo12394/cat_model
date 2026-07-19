@@ -56,6 +56,8 @@ export interface CatModelRunResult {
     coinsurance: number;
     currency: string;
   };
+  asset_damage: AssetDamageResult[];
+  asset_financial: AssetFinancialResult[];
   ground_up_distribution: LossDistribution;
   gross_distribution: LossDistribution;
   net_insured_distribution: LossDistribution;
@@ -74,6 +76,85 @@ export interface CatModelRunResult {
     input_summary: Record<string, string | number>;
     parent_run_id?: string | null;
   };
+}
+
+export interface AssetDamageResult {
+  asset_id: string;
+  intensity: number;
+  mean_damage_ratio: number;
+  damage_state_probabilities: Record<string, number>;
+  building_loss_usd: number;
+  contents_loss_usd: number;
+  business_interruption_loss_usd: number;
+  ground_up_loss_usd: number;
+  extrapolated: boolean;
+  vulnerability_function_id: string;
+}
+
+export interface AssetFinancialResult {
+  asset_id: string;
+  ground_up_loss_usd: number;
+  deductible_applied_usd: number;
+  gross_loss_usd: number;
+  net_insured_loss_usd: number;
+  currency: string;
+}
+
+export interface VulnerabilityFunction {
+  function_id: string;
+  name: string;
+  hazard: string;
+  asset_class: string;
+  intensity_measure: { name: string; label: string; unit: string };
+  curve: { intensity: number; mean_damage_ratio: number }[];
+  calibration_min: number;
+  calibration_max: number;
+  damage_ratio_cov: number;
+  source: Provenance;
+  applicability_notes: string;
+  prohibited_extrapolations: string;
+  version: string;
+  approval_status: string;
+}
+
+export interface EPCurvePoint {
+  return_period_years: number;
+  exceedance_probability: number;
+  loss_usd: number;
+}
+
+export interface ProbabilisticResult {
+  basis: string;
+  aal_usd: number;
+  event_count: number;
+  simulation_years: number;
+  oep_curve: EPCurvePoint[];
+  aep_curve: EPCurvePoint[];
+  var: { quantile: number; loss_usd: number }[];
+  tvar: { quantile: number; loss_usd: number }[];
+  method: string;
+  assumptions: string[];
+  limitations: string[];
+}
+
+export interface ModelResultLayer {
+  run_id: string;
+  layer_id: string;
+  title: string;
+  geometry_type: string;
+  data_status: DataStatus;
+  geojson: {
+    type: "FeatureCollection";
+    features: Array<{
+      id?: string;
+      geometry: { type: "Point"; coordinates: [number, number] };
+      properties: { asset_id: string; name: string; occupancy: string; value: number; unit: string; extrapolated?: boolean };
+    }>;
+  };
+  value_field: string;
+  value_unit: string;
+  provenance_note: string;
+  limitations: string[];
 }
 
 export interface DataCoverageItem {
@@ -384,6 +465,7 @@ export interface PlaceSearchResult {
   center: [number, number];
   provider?: string;
   data_status?: DataStatus;
+  zoom?: number;
 }
 
 export interface NearbyCondition {
@@ -794,90 +876,4 @@ export interface CompoundEventSummary {
   region_label: string;
   status: string;
   center: [number, number];
-  hazards: string[];
-  data_status: DataStatus;
-  is_demo: boolean;
-  fusion_confidence: Confidence;
-  fusion_explanation: string;
-  matched_on: string[];
-  signals: HazardSignalSummary[];
-  consequence_chain: ConsequenceStep[];
-  possible_futures: PossibleFuture[];
-  evidence_agreement: EvidenceChannel[];
-  next_checks: VerificationPriority[];
-  limitations: string[];
-}
-
-export interface MultiHazardOverview {
-  generated_at: string;
-  live_feed_count: number;
-  demo_feed_count: number;
-  unavailable_feed_count: number;
-  compound_events: CompoundEventSummary[];
-  research_notice: string;
-}
-
-export interface CommunityReport {
-  report_id: string;
-  posted_at: string;
-  channel: string;
-  text: string;
-  location_label: string;
-  center: [number, number];
-  sentiment: "alarmed" | "concerned" | "seeking_info" | "calm" | "relieved" | string;
-  theme: string;
-  certainty: "user_reported" | "unverified" | string;
-  corroboration: "corroborated" | "uncorroborated" | "conflicts" | string;
-  corroboration_detail: string;
-}
-
-export interface SentimentBucket {
-  sentiment: string;
-  label: string;
-  count: number;
-  share: number;
-}
-
-export interface ThemeCluster {
-  theme: string;
-  label: string;
-  count: number;
-  dominant_sentiment: string;
-  example: string;
-  corroboration_note: string;
-}
-
-export interface ConcernIndex {
-  score: number;
-  band: "calm" | "watchful" | "concerned" | "alarmed" | string;
-  band_label: string;
-  trend: "rising" | "steady" | "easing" | string;
-  trend_detail: string;
-  method: string;
-}
-
-export interface CorroborationSummary {
-  corroborated: number;
-  uncorroborated: number;
-  conflicts: number;
-  note: string;
-}
-
-export interface CommunityPulseResponse {
-  incident_id: string;
-  region_label: string;
-  window_label: string;
-  generated_at: string;
-  data_status: DataStatus;
-  is_demo: boolean;
-  total_reports: number;
-  concern_index: ConcernIndex;
-  sentiment_breakdown: SentimentBucket[];
-  theme_clusters: ThemeCluster[];
-  corroboration: CorroborationSummary;
-  reports: CommunityReport[];
-  limitations: string[];
-  responsible_use: string[];
-}
-
-export type Mode = "live" | "replay";
+  hazards: 

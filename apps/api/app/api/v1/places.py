@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.adapters.nominatim import geocode_address
+from app.adapters.photon import suggest_places as suggest_geocoded_places
 from app.api.deps import repo_dep, settings_dep
 from app.core.config import Settings
 from app.db.memory_repository import MemoryRepository
@@ -19,11 +20,52 @@ class PlaceSearchResult(BaseModel):
     center: tuple[float, float]
     provider: str = "RiskChain place directory"
     data_status: str = "demo"
+    zoom: float = 12.0
 
 
 class PlaceSearchResponse(BaseModel):
     query: str
     results: list[PlaceSearchResult]
+
+
+def _local_results(matches: list[dict]) -> list[PlaceSearchResult]:
+    return [
+        PlaceSearchResult(
+            place_id=m["place_id"],
+            name=m["name"],
+            center=m["center"],
+            zoom=float(m.get("zoom", 12.0)),
+        )
+        for m in matches
+    ]
+
+
+@router.get("/suggest", response_model=PlaceSearchResponse)
+async def suggest_places(
+    q: str = Query(..., min_length=2, max_length=120),
+    repo: MemoryRepository = Depends(repo_dep),
+    settings: Settings = Depends(settings_dep),
+) -> PlaceSearchResponse:
+    """Return debounced-combobox suggestions without calculating hazard or risk."""
+    local = _local_results(repo.search_places(q, limit=4))
+    external = await suggest_geocoded_places(q, settings, limit=6) if len(q.strip()) >= 3 else []
+    seen = {item.name.casefold() for item in local}
+    results = list(local)
+    for item in external:
+        if item.name.casefold() in seen:
+            continue
+        results.append(PlaceSearchResult(
+            place_id=item.place_id,
+            name=item.name,
+            center=item.center,
+            provider=item.provider,
+            data_status=item.data_status,
+            zoom=item.zoom,
+        ))
+        seen.add(item.name.casefold())
+        if len(results) >= 6:
+            break
+    return PlaceSearchResponse(query=q, results=results)
 
 
 @router.get("/search", response_model=PlaceSearchResponse)
@@ -34,10 +76,7 @@ async def search_places(
 ) -> PlaceSearchResponse:
     matches = repo.search_places(q)
     if matches:
-        results = [
-            PlaceSearchResult(place_id=m["place_id"], name=m["name"], center=m["center"])
-            for m in matches
-        ]
+        results = _local_results(matches)
     else:
         geocoded = await geocode_address(q, settings)
         results = [
@@ -47,6 +86,7 @@ async def search_places(
                 center=m.center,
                 provider=m.provider,
                 data_status=m.data_status,
+                zoom=m.zoom,
             )
             for m in geocoded
         ]

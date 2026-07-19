@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     openfema_base_url: str = "https://www.fema.gov/api/open"
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"
     nominatim_user_agent: str = "RiskChain-CAT/0.1 (https://earthpulse-cat-model.vercel.app)"
+    photon_base_url: str = "https://photon.komoot.io"
 
     # Community reports: read-only X API access. Without an approved Bearer
     # Token, no social data or substitute sentiment is shown in the product.

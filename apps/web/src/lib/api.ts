@@ -27,6 +27,9 @@ import type {
   SourceStatus,
   CatModelRunResult,
   DataCoverageItem,
+  ProbabilisticResult,
+  VulnerabilityFunction,
+  ModelResultLayer,
   LearnLessonSummary,
   LearnLesson,
   ResearchSearchResponse,
@@ -74,6 +77,8 @@ export const api = {
 
   searchPlaces: (q: string) =>
     request<{ query: string; results: PlaceSearchResult[] }>(`/places/search?q=${encodeURIComponent(q)}`),
+  suggestPlaces: (q: string) =>
+    request<{ query: string; results: PlaceSearchResult[] }>(`/places/suggest?q=${encodeURIComponent(q)}`),
   getPlaceCapsule: (placeId: string) => request<LocationCapsule>(`/places/${placeId}/capsule`),
 
   listIncidents: (mode: "live" | "replay" = "live") =>
@@ -125,6 +130,11 @@ export const api = {
     body: JSON.stringify(body),
   }),
   catDataCoverage: () => request<DataCoverageItem[]>("/cat/data-coverage"),
+  catVulnerabilityFunctions: () => request<VulnerabilityFunction[]>("/cat/vulnerability-functions"),
+  catProbabilisticResults: (runId: string, years = 5000) =>
+    request<ProbabilisticResult>(`/cat/model-runs/${encodeURIComponent(runId)}/probabilistic?years=${years}`),
+  catRunLayer: (runId: string, layerId: "damage-ratio" | "flood-depth" | "ground-up-loss" | "insured-loss") =>
+    request<ModelResultLayer>(`/cat/model-runs/${encodeURIComponent(runId)}/layers/${layerId}`),
   learnLessons: () => request<LearnLessonSummary[]>("/learn/lessons"),
   learnLesson: (lessonId: string) => request<LearnLesson>(`/learn/lessons/${encodeURIComponent(lessonId)}`),
   researchSearch: (query: string, hazard?: string, assetType?: string) =>
@@ -133,20 +143,4 @@ export const api = {
       body: JSON.stringify({ query, hazard: hazard || null, asset_type: assetType || null }),
     }),
   roadmap: () => request<RoadmapResponse>("/roadmap"),
-  queryCopilot: (message: string, context?: { hazard?: string; location_label?: string; run_id?: string; interface_mode?: string }) =>
-    request<CopilotAnswer>("/copilot/chat", {
-      method: "POST",
-      body: JSON.stringify({ message, context: { user_role: "learner", interface_mode: "guided", permissions: [], ...context } }),
-    }),
-
-  uploadPortfolio: async (file: File) => {
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch(`${BASE_URL}/portfolio/upload`, { method: "POST", body: form });
-    if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new ApiError(res.status, body || res.statusText);
-    }
-    return res.json() as Promise<PortfolioExposure>;
-  },
-};
+  queryCopilot: (message: string, context?: { hazard?: s
