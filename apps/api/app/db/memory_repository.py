@@ -30,6 +30,8 @@ class MemoryRepository:
         self._scenarios: dict[str, Scenario] = {}
         self._scenario_results: dict[str, ScenarioResult] = {}
         self._portfolios: dict[str, dict] = {}
+        # Immutable CAT model runs, keyed by run_id (rule 13: never overwrite).
+        self._cat_runs: dict[str, object] = {}
 
     # -- scenarios --------------------------------------------------------
     def save_scenario(self, scenario: Scenario) -> None:
@@ -43,6 +45,16 @@ class MemoryRepository:
 
     def get_scenario_result(self, scenario_id: str) -> ScenarioResult | None:
         return self._scenario_results.get(scenario_id)
+
+    # -- CAT model runs (immutable) ---------------------------------------
+    def save_cat_run(self, run_id: str, result: object) -> None:
+        self._cat_runs[run_id] = result
+
+    def get_cat_run(self, run_id: str) -> object | None:
+        return self._cat_runs.get(run_id)
+
+    def list_cat_runs(self) -> list[object]:
+        return list(self._cat_runs.values())
 
     # -- portfolio (tenant-isolated by portfolio_id token) -----------------
     def save_portfolio(self, portfolio_id: str, data: dict) -> None:

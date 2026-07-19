@@ -39,6 +39,21 @@ backs each endpoint's data, and `apps/api/app/schemas/` for the exact response s
 | `/models/{model_id}/card` | GET | One model card |
 | `/risks/hidden` | GET | Find Hidden Risks ranked list |
 | `/community/pulse?incident_id=` | GET | Community Pulse sentiment analysis: deterministic concern index (weighted count of categorical sentiment tags), theme clusters, and corroborated-vs-rumor cross-check over `user_reported`/`unverified` community reports |
+| `/cat/exposure/demo` | GET | Demonstration exposure assets with per-attribute origin flags |
+| `/cat/vulnerability-functions` | GET | Depth-damage curves (experimental) with calibration ranges |
+| `/cat/models` | GET | CAT model registry (cards + approval status) |
+| `/cat/models/{model_id}` | GET | One model card |
+| `/cat/mitigation-options` | GET | Available mitigation interventions |
+| `/cat/model-runs` | POST | Run the full deterministic flood loss chain; returns immutable run + manifest |
+| `/cat/model-runs` | GET | List run summaries |
+| `/cat/model-runs/{id}` | GET | Full run result (damage, financial, audit, confidence, sources, limitations) |
+| `/cat/model-runs/{id}/uncertainty` | GET | Ground-up / gross / net loss distributions + confidence |
+| `/cat/model-runs/{id}/probabilistic?years=&seed=` | GET | Event-set AAL / OEP / AEP / VaR / TVaR anchored to the run |
+| `/cat/model-runs/{id}/mitigation?option_id=` | POST | Avoided-loss comparison for one intervention |
+
+See `docs/CAT_MODEL_SPEC.md` for the scientific specification. Every CAT result
+is `data_status: demo`; losses are ranges, not single values; no LLM computes
+any number.
 
 ## Conventions
 
