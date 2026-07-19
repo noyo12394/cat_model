@@ -82,10 +82,10 @@ export function RiskChainWorkspace() {
 
   const events = useMemo(() => eventsResponse?.events ?? [], [eventsResponse]);
   const visibleEvents = useMemo(() => {
-    if (hazard === "flood") return events.filter((event) => event.event_type.toLowerCase().includes("flood"));
-    if (hazard === "earthquake") return events.filter((event) => event.event_type.toLowerCase().includes("earth"));
-    if (hazard === "wildfire") return events.filter((event) => /fire/i.test(event.event_type));
-    if (hazard === "wind") return events.filter((event) => /cyclone|storm|wind/i.test(event.event_type));
+    if (hazard === "flood") return events.filter((event) => /^(fl|flood)$/i.test(event.event_type));
+    if (hazard === "earthquake") return events.filter((event) => /^(eq|earthquake)$/i.test(event.event_type));
+    if (hazard === "wildfire") return events.filter((event) => /^(wf|fire|wildfire)$/i.test(event.event_type));
+    if (hazard === "wind") return events.filter((event) => /^(tc|cyclone|storm|wind)$/i.test(event.event_type));
     return events;
   }, [events, hazard]);
 

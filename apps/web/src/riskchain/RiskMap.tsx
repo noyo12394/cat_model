@@ -48,9 +48,9 @@ function eventColor(event: GlobalEvent) {
   if (event.alert_level === "red") return "#d93025";
   if (event.alert_level === "orange") return "#f29900";
   const hazard = event.event_type.toLowerCase();
-  if (hazard.includes("earth")) return "#7e57c2";
-  if (hazard.includes("fire")) return "#f4511e";
-  if (hazard.includes("flood")) return "#1a73e8";
+  if (hazard === "eq" || hazard.includes("earth")) return "#7e57c2";
+  if (hazard === "wf" || hazard.includes("fire")) return "#f4511e";
+  if (hazard === "fl" || hazard.includes("flood")) return "#1a73e8";
   return "#188038";
 }
 
