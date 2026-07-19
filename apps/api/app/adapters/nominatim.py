@@ -24,6 +24,7 @@ class GeocodedPlace:
     center: tuple[float, float]
     provider: str = "OpenStreetMap Nominatim"
     data_status: str = "live"
+    zoom: float = 12.0
 
 
 _cache: dict[str, tuple[float, list[GeocodedPlace]]] = {}
@@ -77,10 +78,25 @@ async def geocode_address(query: str, settings: Settings, limit: int = 5) -> lis
             try:
                 osm_type = str(item.get("osm_type", "place"))
                 osm_id = str(item["osm_id"])
+                address_type = str(item.get("addresstype", item.get("type", ""))).casefold()
+                zoom = {
+                    "country": 4.0,
+                    "state": 6.0,
+                    "region": 7.0,
+                    "county": 8.0,
+                    "city": 11.0,
+                    "town": 11.0,
+                    "village": 12.0,
+                    "postcode": 12.0,
+                    "road": 15.0,
+                    "house": 17.0,
+                    "building": 17.0,
+                }.get(address_type, 12.0)
                 results.append(GeocodedPlace(
                     place_id=f"osm-{osm_type}-{osm_id}",
                     name=str(item["display_name"]),
                     center=(float(item["lon"]), float(item["lat"])),
+                    zoom=zoom,
                 ))
             except (KeyError, TypeError, ValueError):
                 continue

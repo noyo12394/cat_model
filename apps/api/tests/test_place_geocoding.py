@@ -34,3 +34,22 @@ def test_seeded_place_does_not_call_external_geocoder(monkeypatch):
     response = client.get("/api/v1/places/search", params={"q": "Lehigh University"})
     assert response.status_code == 200
     assert response.json()["results"][0]["provider"] == "RiskChain place directory"
+
+
+def test_suggestions_merge_local_and_source_labelled_photon(monkeypatch):
+    async def fake_suggest(query, settings, limit=6):
+        assert query == "New Jer"
+        return [GeocodedPlace(
+            place_id="photon-r-224951",
+            name="New Jersey, United States",
+            center=(-74.4041622, 40.0757384),
+            provider="Photon / OpenStreetMap",
+        )]
+
+    monkeypatch.setattr(places, "suggest_geocoded_places", fake_suggest)
+    response = client.get("/api/v1/places/suggest", params={"q": "New Jer"})
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    assert result["name"] == "New Jersey, United States"
+    assert result["provider"] == "Photon / OpenStreetMap"
+    assert result["center"] == [-74.4041622, 40.0757384]
