@@ -143,4 +143,19 @@ export const api = {
       body: JSON.stringify({ query, hazard: hazard || null, asset_type: assetType || null }),
     }),
   roadmap: () => request<RoadmapResponse>("/roadmap"),
-  queryCopilot: (message: string, context?: { hazard?: s
+  queryCopilot: (message: string, context?: { hazard?: string; location_label?: string; run_id?: string; interface_mode?: string }) =>
+    request<CopilotAnswer>("/copilot/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, context: { user_role: "learner", interface_mode: "guided", permissions: [], ...context } }),
+    }),
+  uploadPortfolio: async (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(`${BASE_URL}/portfolio/upload`, { method: "POST", body: form });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new ApiError(res.status, body || res.statusText);
+    }
+    return res.json() as Promise<PortfolioExposure>;
+  },
+};

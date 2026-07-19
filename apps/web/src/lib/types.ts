@@ -876,4 +876,90 @@ export interface CompoundEventSummary {
   region_label: string;
   status: string;
   center: [number, number];
-  hazards: 
+  hazards: string[];
+  data_status: DataStatus;
+  is_demo: boolean;
+  fusion_confidence: Confidence;
+  fusion_explanation: string;
+  matched_on: string[];
+  signals: HazardSignalSummary[];
+  consequence_chain: ConsequenceStep[];
+  possible_futures: PossibleFuture[];
+  evidence_agreement: EvidenceChannel[];
+  next_checks: VerificationPriority[];
+  limitations: string[];
+}
+
+export interface MultiHazardOverview {
+  generated_at: string;
+  live_feed_count: number;
+  demo_feed_count: number;
+  unavailable_feed_count: number;
+  compound_events: CompoundEventSummary[];
+  research_notice: string;
+}
+
+export interface CommunityReport {
+  report_id: string;
+  posted_at: string;
+  channel: string;
+  text: string;
+  location_label: string;
+  center: [number, number];
+  sentiment: "alarmed" | "concerned" | "seeking_info" | "calm" | "relieved" | string;
+  theme: string;
+  certainty: "user_reported" | "unverified" | string;
+  corroboration: "corroborated" | "uncorroborated" | "conflicts" | string;
+  corroboration_detail: string;
+}
+
+export interface SentimentBucket {
+  sentiment: string;
+  label: string;
+  count: number;
+  share: number;
+}
+
+export interface ThemeCluster {
+  theme: string;
+  label: string;
+  count: number;
+  dominant_sentiment: string;
+  example: string;
+  corroboration_note: string;
+}
+
+export interface ConcernIndex {
+  score: number;
+  band: "calm" | "watchful" | "concerned" | "alarmed" | string;
+  band_label: string;
+  trend: "rising" | "steady" | "easing" | string;
+  trend_detail: string;
+  method: string;
+}
+
+export interface CorroborationSummary {
+  corroborated: number;
+  uncorroborated: number;
+  conflicts: number;
+  note: string;
+}
+
+export interface CommunityPulseResponse {
+  incident_id: string;
+  region_label: string;
+  window_label: string;
+  generated_at: string;
+  data_status: DataStatus;
+  is_demo: boolean;
+  total_reports: number;
+  concern_index: ConcernIndex;
+  sentiment_breakdown: SentimentBucket[];
+  theme_clusters: ThemeCluster[];
+  corroboration: CorroborationSummary;
+  reports: CommunityReport[];
+  limitations: string[];
+  responsible_use: string[];
+}
+
+export type Mode = "live" | "replay";
