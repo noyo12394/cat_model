@@ -1,7 +1,7 @@
 "use client";
 
 import { useAppStore } from "@/lib/store";
-import { Activity, Bot, Eye, Radio, ShieldCheck } from "lucide-react";
+import { Activity, Bot, Eye, Radio } from "lucide-react";
 import { TopSearchBar } from "./TopSearchBar";
 import { LeftNavRail } from "./LeftNavRail";
 import { RightPanelHost } from "./RightPanelHost";
@@ -32,8 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         <TopSearchBar />
         <div className="header-status" aria-label="System status">
-          <span className="status-chip status-chip-live"><Radio size={13} aria-hidden /> Multi-hazard demo</span>
-          <span className="status-chip"><ShieldCheck size={13} aria-hidden /> 8 source adapters</span>
+          <span className="status-chip status-chip-live"><Radio size={13} aria-hidden /> Research demo</span>
           {uncertaintyLens && <span className="status-chip status-chip-lens"><Eye size={13} aria-hidden /> Uncertainty</span>}
         </div>
       </header>

@@ -499,6 +499,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
     const timer = window.setInterval(update, 420);
     return () => {
       window.clearInterval(timer);
+      if (mapRef.current !== map) return;
       const source = map.getSource("hazard-flow") as maplibregl.GeoJSONSource | undefined;
       source?.setData({ type: "FeatureCollection", features: [] });
     };
@@ -520,6 +521,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
     const timer = window.setInterval(update, 380);
     return () => {
       window.clearInterval(timer);
+      if (mapRef.current !== map) return;
       const source = map.getSource("rain-particles") as maplibregl.GeoJSONSource | undefined;
       source?.setData({ type: "FeatureCollection", features: [] });
     };
