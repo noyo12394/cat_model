@@ -65,6 +65,13 @@ backs each endpoint's data, and `apps/api/app/schemas/` for the exact response s
 | `/copilot/chat` | POST | CAT copilot: interprets intent, runs approved tools, narrates verified results; no number comes from the LLM (`numbers_source`/`prose_source` prove provenance) |
 | `/copilot/tools` | GET | Approved tool registry the copilot may call |
 | `/copilot/component-catalogue` | GET | Approved frontend components the copilot may reference (deliverable 11) |
+| `/learn/lessons` | GET | Learn CAT curriculum lesson summaries (section 14) |
+| `/learn/lessons/{id}` | GET | Full lesson: plain-language, technical, formula, example, common mistake, knowledge check |
+| `/learn/glossary` / `/learn/glossary/{term}` | GET | CAT glossary terms with definitions and lesson links |
+| `/research/search` | POST | Curated method/formula index search (section 12); live academic adapters reported truthfully as unavailable |
+| `/research/papers/{id}` | GET | Full paper/extraction record with review status |
+| `/research/papers/{id}/extract` | POST | Opens a human-review task; never auto-implements or promotes a formula |
+| `/roadmap` | GET | Product roadmap with owners, budget bands and acceptance gates (deliverable 16) |
 
 See `docs/CAT_MODEL_SPEC.md` for the scientific specification. Every CAT result
 is `data_status: demo`; losses are ranges, not single values; no LLM computes

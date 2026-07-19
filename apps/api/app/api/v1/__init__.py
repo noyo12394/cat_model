@@ -8,11 +8,14 @@ from app.api.v1 import (
     community,
     copilot,
     incidents,
+    learn,
     live,
     models,
     places,
     portfolio,
+    research,
     risks,
+    roadmap,
     routes,
     scenarios,
     sources,
@@ -32,3 +35,6 @@ api_router.include_router(risks.router)
 api_router.include_router(community.router)
 api_router.include_router(catmodel.router)
 api_router.include_router(copilot.router)
+api_router.include_router(learn.router)
+api_router.include_router(research.router)
+api_router.include_router(roadmap.router)
