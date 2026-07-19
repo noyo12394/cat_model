@@ -61,6 +61,13 @@ backs each endpoint's data, and `apps/api/app/schemas/` for the exact response s
 | `/cat/model-runs/{id}/probabilistic?years=&seed=` | GET | Event-set AAL / OEP / AEP / VaR / TVaR anchored to the run |
 | `/cat/model-runs/{id}/mitigation?option_id=` | POST | Avoided-loss comparison for one intervention |
 | `/cat/data-coverage` | GET | Layer-by-layer availability, origin, resolution, use and limitations |
+| `/cat/charts/fragility/{function_id}` | GET | Chart-ready depth-damage curve (labelled axes, calibration range) |
+| `/cat/model-runs/{id}/charts/fragility?asset_id=` | GET | The asset's curve with its own depth/damage point marked |
+| `/cat/model-runs/{id}/charts/loss-histogram?bins=` | GET | Binned Monte Carlo loss distribution, consistent with the run's stored percentiles |
+| `/cat/model-runs/{id}/charts/ep?years=&seed=` | GET | OEP/AEP series + AAL as drawable x/y points |
+| `/cat/model-runs/{id}/charts/waterfall` | GET | Ground-up → deductible → limit → coinsurance → net insured, reconciling exactly |
+| `/cat/model-runs/{id}/charts/drivers?top=` | GET | Ranked loss contributors with cumulative share |
+| `/cat/model-runs/{id}/charts/water-rise` | GET | Loss vs water-level offset sweep (animated "raise the water" slider) |
 | `/cat/capabilities` | GET | Truthful 16-deliverable implementation audit for the current release |
 | `/copilot/chat` | POST | CAT copilot: interprets intent, runs approved tools, narrates verified results; no number comes from the LLM (`numbers_source`/`prose_source` prove provenance) |
 | `/copilot/tools` | GET | Approved tool registry the copilot may call |

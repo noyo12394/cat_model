@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     assistant,
+    cat_charts,
     catmodel,
     community,
     copilot,
@@ -34,6 +35,7 @@ api_router.include_router(models.router)
 api_router.include_router(risks.router)
 api_router.include_router(community.router)
 api_router.include_router(catmodel.router)
+api_router.include_router(cat_charts.router)
 api_router.include_router(copilot.router)
 api_router.include_router(learn.router)
 api_router.include_router(research.router)
