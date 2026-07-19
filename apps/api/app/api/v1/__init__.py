@@ -6,6 +6,7 @@ from app.api.v1 import (
     assistant,
     catmodel,
     community,
+    copilot,
     incidents,
     live,
     models,
@@ -30,3 +31,4 @@ api_router.include_router(models.router)
 api_router.include_router(risks.router)
 api_router.include_router(community.router)
 api_router.include_router(catmodel.router)
+api_router.include_router(copilot.router)

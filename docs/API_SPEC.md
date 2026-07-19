@@ -62,6 +62,9 @@ backs each endpoint's data, and `apps/api/app/schemas/` for the exact response s
 | `/cat/model-runs/{id}/mitigation?option_id=` | POST | Avoided-loss comparison for one intervention |
 | `/cat/data-coverage` | GET | Layer-by-layer availability, origin, resolution, use and limitations |
 | `/cat/capabilities` | GET | Truthful 16-deliverable implementation audit for the current release |
+| `/copilot/chat` | POST | CAT copilot: interprets intent, runs approved tools, narrates verified results; no number comes from the LLM (`numbers_source`/`prose_source` prove provenance) |
+| `/copilot/tools` | GET | Approved tool registry the copilot may call |
+| `/copilot/component-catalogue` | GET | Approved frontend components the copilot may reference (deliverable 11) |
 
 See `docs/CAT_MODEL_SPEC.md` for the scientific specification. Every CAT result
 is `data_status: demo`; losses are ranges, not single values; no LLM computes
