@@ -6,7 +6,7 @@ import { LocationCapsulePanel } from "@/components/capsule/LocationCapsulePanel"
 import { IncidentRoomPanel } from "@/components/incident/IncidentRoomPanel";
 import { RouteRiskPanel } from "@/components/route/RouteRiskPanel";
 import { AssistantPanel } from "@/components/assistant/AssistantPanel";
-import { ScenarioLabPanel } from "@/components/scenario/ScenarioLabPanel";
+import { RiskModelPanel } from "@/components/scenario/RiskModelPanel";
 import { PortfolioPanel } from "@/components/portfolio/PortfolioPanel";
 import { HiddenRisksPanel } from "@/components/common/HiddenRisksPanel";
 import { SourceHealthPanel } from "@/components/common/SourceHealthPanel";
@@ -21,7 +21,7 @@ export function RightPanelHost() {
   const mode = useAppStore((s) => s.mode);
   const panel = useAppStore((s) => s.panel);
 
-  if (mode === "scenario-lab") return <ScenarioLabPanel />;
+  if (mode === "scenario-lab") return <RiskModelPanel />;
   if (mode === "portfolio") return <PortfolioPanel />;
 
   switch (panel.kind) {

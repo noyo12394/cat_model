@@ -24,7 +24,7 @@ const ITEMS = [
   { href: "/forecast", label: "Forecast", icon: CloudSun },
   { href: "/incidents/developing-flood-bethlehem", label: "Incidents", icon: ShieldAlert },
   { href: "/replay", label: "Replay", icon: History },
-  { href: "/scenario-lab", label: "Scenario", icon: FlaskConical },
+  { href: "/scenario-lab", label: "Model", icon: FlaskConical },
   { href: "/portfolio", label: "Portfolio", icon: FolderKanban },
 ];
 

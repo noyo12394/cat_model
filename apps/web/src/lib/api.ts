@@ -25,6 +25,8 @@ import type {
   Scenario,
   ScenarioResult,
   SourceStatus,
+  CatModelRunResult,
+  DataCoverageItem,
   WhatChanged,
 } from "./types";
 
@@ -105,6 +107,19 @@ export const api = {
   sourceStatus: () => request<SourceStatus[]>("/sources/status"),
   listModels: () => request<ModelCard[]>("/models"),
   hiddenRisks: () => request<HiddenRisk[]>("/risks/hidden"),
+
+  runCatFloodModel: (body: {
+    scenario_label: string;
+    deductible_usd: number;
+    limit_usd: number | null;
+    coinsurance: number;
+    seed: number;
+    iterations: number;
+  }) => request<CatModelRunResult>("/cat/model-runs", {
+    method: "POST",
+    body: JSON.stringify(body),
+  }),
+  catDataCoverage: () => request<DataCoverageItem[]>("/cat/data-coverage"),
 
   uploadPortfolio: async (file: File) => {
     const form = new FormData();

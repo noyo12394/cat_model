@@ -16,6 +16,78 @@ export type Confidence = "low" | "moderate" | "high";
 export type Severity = "unknown" | "normal" | "watch" | "elevated" | "severe" | "extreme";
 export type DataStatus = "live" | "stale" | "unavailable" | "demo";
 
+export interface LossDistribution {
+  mean_usd: number;
+  p10_usd: number;
+  p50_usd: number;
+  p90_usd: number;
+  range_low_usd: number;
+  range_high_usd: number;
+  std_usd: number;
+  samples: number;
+  method: string;
+}
+
+export interface CatAuditFinding {
+  code: string;
+  severity: "info" | "warning" | "high" | string;
+  title: string;
+  detail: string;
+  recommendation: string;
+}
+
+export interface CatModelRunResult {
+  run_id: string;
+  scenario_label: string;
+  hazard_type: string;
+  region_label: string;
+  is_demo: boolean;
+  data_status: DataStatus;
+  resolution: {
+    analysis_resolution: string;
+    hazard_resolution: string;
+    population_resolution: string;
+    building_use_origin: string;
+  };
+  asset_count: number;
+  financial_terms: {
+    deductible_usd: number;
+    limit_usd?: number | null;
+    coinsurance: number;
+    currency: string;
+  };
+  ground_up_distribution: LossDistribution;
+  gross_distribution: LossDistribution;
+  net_insured_distribution: LossDistribution;
+  confidence: { band: Confidence; drivers: string[]; largest_uncertainty: string };
+  audit_findings: CatAuditFinding[];
+  assumptions: { label: string; value: string; origin: string }[];
+  sources: Provenance[];
+  limitations: string[];
+  manifest: {
+    run_id: string;
+    created_at: string;
+    code_version: string;
+    model_ids: Record<string, string>;
+    random_seed: number;
+    parameters: Record<string, string | number>;
+    input_summary: Record<string, string | number>;
+    parent_run_id?: string | null;
+  };
+}
+
+export interface DataCoverageItem {
+  layer_id: string;
+  label: string;
+  availability: "available_demo" | "available_live" | "unavailable";
+  use_in_run: string;
+  source: string;
+  geographic_resolution: string;
+  temporal_resolution: string;
+  attribute_origin: string;
+  limitations: string[];
+}
+
 export interface TimeRange {
   start: string;
   end?: string | null;
