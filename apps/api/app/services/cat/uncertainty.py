@@ -91,6 +91,33 @@ def _distribution(samples: list[float], method: str) -> LossDistribution:
     )
 
 
+def portfolio_ground_up_samples(
+    specs: list[AssetLossSpec],
+    seed: int,
+    iterations: int = 2000,
+) -> list[float]:
+    """Raw per-iteration ground-up portfolio losses (for histogram rendering).
+
+    Uses the same sampling scheme and seeding as ``monte_carlo`` so a histogram
+    built from these samples is consistent with a run's stored distribution.
+    """
+    rng = random.Random(seed)
+    samples: list[float] = []
+    for _ in range(iterations):
+        total = 0.0
+        for spec in specs:
+            b_ratio = _sample_ratio(rng, spec.mean_building_ratio, spec.cov)
+            c_ratio = contents_damage_ratio(b_ratio)
+            dt = downtime_days(b_ratio)
+            total += (
+                spec.replacement_value_usd * b_ratio
+                + spec.contents_value_usd * c_ratio
+                + spec.business_interruption_daily_usd * dt
+            )
+        samples.append(total)
+    return samples
+
+
 def monte_carlo(
     specs: list[AssetLossSpec],
     seed: int,
