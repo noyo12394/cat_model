@@ -132,7 +132,7 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
                 position: { lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] },
                 title: `${feature.properties.name}: ${(value * 100).toFixed(1)}% mean damage ratio (modelled demo)`,
                 icon: {
-                  path: google.maps.SymbolPath.SQUARE,
+              path: google.maps.SymbolPath.CIRCLE,
                   scale: 8,
                   fillColor: damageColor(value),
                   fillOpacity: 0.9,
