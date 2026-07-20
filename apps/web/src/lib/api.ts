@@ -47,19 +47,46 @@ export class ApiError extends Error {
     message: string,
   ) {
     super(message);
+    this.name = "ApiError";
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new ApiError(res.status, body || res.statusText);
+function errorMessage(body: string, fallback: string) {
+  if (!body) return fallback;
+  try {
+    const parsed = JSON.parse(body) as { detail?: string | Array<{ msg?: string }> };
+    if (typeof parsed.detail === "string") return parsed.detail;
+    if (Array.isArray(parsed.detail)) return parsed.detail.map((item) => item.msg).filter(Boolean).join("; ") || fallback;
+  } catch {
+    // Plain-text upstream errors are still useful, but never render an HTML error page.
   }
-  return res.json() as Promise<T>;
+  return body.includes("<html") ? fallback : body.slice(0, 280);
+}
+
+async function request<T>(path: string, init?: RequestInit, timeoutMs = 30_000): Promise<T> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const abortFromCaller = () => controller.abort();
+  init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new ApiError(res.status, errorMessage(body, res.statusText || "Request failed"));
+    }
+    return await res.json() as T;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (controller.signal.aborted) throw new ApiError(408, "The service took too long to respond. Please retry; the control has been re-enabled.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+    init?.signal?.removeEventListener("abort", abortFromCaller);
+  }
 }
 
 export const api = {
@@ -132,7 +159,7 @@ export const api = {
     body: JSON.stringify(body),
   }),
   hazardEvents: (mode: Exclude<AnalysisMode,"demo">, hazard: AnalysisHazard, startDate?:string,endDate?:string) => { const params=new URLSearchParams({mode,hazard_type:hazard}); if(startDate)params.set("start_date",startDate); if(endDate)params.set("end_date",endDate); return request<HazardEventSearchResponse>(`/cat/hazard-events?${params.toString()}`); },
-  runAnalysis: (body:{mode:Exclude<AnalysisMode,"demo">;hazard_type:AnalysisHazard;location?:AnalysisLocation|null;provider?:string|null;event_id?:string|null;advisory_id?:string|null;threshold?:string|null;return_period_years?:number|null;start_date?:string|null;end_date?:string|null;exposure_dataset?:string;vulnerability_model?:string|null;simulation_count?:number;seed?:number}) => request<AnalysisRunResult>("/cat/analyses",{method:"POST",body:JSON.stringify(body)}),
+  runAnalysis: (body:{mode:Exclude<AnalysisMode,"demo">;hazard_type:AnalysisHazard;location?:AnalysisLocation|null;provider?:string|null;event_id?:string|null;advisory_id?:string|null;threshold?:string|null;return_period_years?:number|null;start_date?:string|null;end_date?:string|null;exposure_dataset?:string;vulnerability_model?:string|null;simulation_count?:number;seed?:number}) => request<AnalysisRunResult>("/cat/analyses",{method:"POST",body:JSON.stringify(body)},45_000),
   catDataCoverage: () => request<DataCoverageItem[]>("/cat/data-coverage"),
   catVulnerabilityFunctions: () => request<VulnerabilityFunction[]>("/cat/vulnerability-functions"),
   catProbabilisticResults: (runId: string, years = 5000) =>

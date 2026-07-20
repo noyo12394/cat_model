@@ -49,7 +49,10 @@ class USGSEarthquakeProvider:
     async def search_historical_events(self,start:date,end:date)->HazardEventSearchResponse:
         return await self._query(datetime.combine(start,time.min,timezone.utc),datetime.combine(end,time.max,timezone.utc),2.5)
     async def get_event_details(self,event_id:str,advisory_id:str|None=None)->dict:
-        payload=await safe_get_json(f"https://earthquake.usgs.gov/earthquakes/feed/v1.0/detail/{event_id}.geojson"); return payload if isinstance(payload,dict) else {}
+        # FDSN resolves both global ``us`` ids and regional-network ids such as
+        # ``ci``/``ak``.  The feed detail URL returns 404 for older regional
+        # events even when the catalog correctly advertises a ShakeMap.
+        payload=await safe_get_json(f"{self.base_url}/query",{"eventid":event_id,"format":"geojson"}); return payload if isinstance(payload,dict) else {}
     async def get_hazard_footprint(self,event_id:str,threshold:str)->list[dict]:
         detail=await self.get_event_details(event_id); products=detail.get("properties",{}).get("products",{}).get("shakemap",[])
         if not products:return []

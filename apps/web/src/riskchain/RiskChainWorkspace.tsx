@@ -11,12 +11,13 @@ import { api, ApiError } from "@/lib/api";
 import type {
   AnalysisLocation, AnalysisRunResult, CatModelRunResult, DataCoverageItem, GlobalEventsResponse,
   LearnLesson, LearnLessonSummary, ResearchSearchResponse, RoadmapResponse,
-  ModelResultLayer, PlaceSearchResult, ProbabilisticResult, VulnerabilityFunction,
+  CopilotAnswer, ModelResultLayer, PlaceSearchResult, ProbabilisticResult, VulnerabilityFunction,
 } from "@/lib/types";
-import { RiskMap, type MapSelection } from "./RiskMap";
+import { RiskMap, type MapSelection, type MapViewport } from "./RiskMap";
 import { ModelAnalytics } from "./ModelAnalytics";
 import { ModelBuilder } from "./ModelBuilder";
 import { AnalysisResults } from "./AnalysisResults";
+import { GeoAgentPanel, type GeoAgentLayerState } from "./GeoAgentPanel";
 
 type View = "explore" | "model" | "live" | "learn" | "research";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account";
@@ -71,6 +72,8 @@ export function RiskChainWorkspace() {
   const [curves, setCurves] = useState<VulnerabilityFunction[]>([]);
   const [probabilistic, setProbabilistic] = useState<ProbabilisticResult | null>(null);
   const [modelLayer, setModelLayer] = useState<ModelResultLayer | null>(null);
+  const [mapViewport, setMapViewport] = useState<MapViewport | null>(null);
+  const [geoLayers, setGeoLayers] = useState<GeoAgentLayerState>({ events: true, analysis: true, demo: true, analysisOpacity: 0.25 });
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -83,7 +86,7 @@ export function RiskChainWorkspace() {
   const [researchQuery, setResearchQuery] = useState("validated flood depth-damage functions for commercial masonry buildings");
   const [research, setResearch] = useState<ResearchSearchResponse | null>(null);
   const [aiQuestion, setAiQuestion] = useState("Explain the largest uncertainty in this analysis.");
-  const [aiAnswer, setAiAnswer] = useState<string | null>(null);
+  const [aiAnswer, setAiAnswer] = useState<CopilotAnswer | null>(null);
   const [currentOnly, setCurrentOnly] = useState(true);
   const [user, setUser] = useState<WorkspaceUser | null>(() => {
     if (typeof window === "undefined") return null;
@@ -369,11 +372,15 @@ export function RiskChainWorkspace() {
 
   async function askCopilot(event: FormEvent) {
     event.preventDefault();
+    if (!aiQuestion.trim()) return;
     setLoading(true);
     try {
-      const answer = await api.queryCopilot(aiQuestion, { hazard, location_label: scope === "local" ? "Bethlehem / Lehigh Valley, PA" : selection?.title, run_id: run?.run_id, interface_mode: professionalMode ? "professional" : "guided" });
-      setAiAnswer(`${answer.message}\n\nNumbers source: ${answer.numbers_source === "approved_tools" ? "approved calculation tools" : "no numeric claims"}.`);
-    } catch { setAiAnswer("The grounded copilot is unavailable. It will not answer without the approved backend tools."); }
+      const answer = await api.queryCopilot(aiQuestion.trim(), { hazard, location_label: scope === "local" ? "Bethlehem / Lehigh Valley, PA" : selection?.title, run_id: run?.run_id ?? analysisRun?.run_id, interface_mode: professionalMode ? "professional" : "guided" });
+      setAiAnswer(answer);
+    } catch (error) {
+      setAiAnswer(null);
+      setNotice(error instanceof ApiError ? `Geospatial agent: ${error.message}` : "The grounded agent is unavailable. It will not answer without approved backend tools.");
+    }
     finally { setLoading(false); }
   }
 
@@ -443,7 +450,7 @@ export function RiskChainWorkspace() {
           <button className="mode-button" onClick={() => setProfessionalMode((value) => !value)}><SlidersHorizontal size={17} /> {professionalMode ? "Professional" : "Guided"}</button>
           <button className="icon-button" onClick={() => setOperationsMode((value) => !value)} aria-label="Toggle operations mode">{operationsMode ? <Sun size={18} /> : <Moon size={18} />}</button>
           <button className="account-button" onClick={() => setPanel("account")}><UserRound size={17} /> {user ? user.name.split(" ")[0] : "Sign in"}</button>
-          <button className="primary compact" onClick={() => setPanel("ai")}><Bot size={17} /> Ask AI</button>
+          <button className="primary compact agent-launch" onClick={() => setPanel("ai")} aria-label="Open geospatial agent"><Bot size={17} /><span>Ask AI</span></button>
         </div>
       </header>
 
@@ -452,7 +459,20 @@ export function RiskChainWorkspace() {
       </nav>
 
       <section id="workspace" className="workspace">
-        <RiskMap events={scope === "global" ? visibleEvents : []} scope={scope} operationsMode={operationsMode} hazard={hazard} focus={selection?.center} focusZoom={selection?.zoom} modelLayer={modelLayer} analysisLayer={analysisRun?.hazard_layers[0]} onSelect={onSelect} />
+        <RiskMap
+          events={geoLayers.events && scope === "global" ? visibleEvents : []}
+          scope={scope}
+          operationsMode={operationsMode}
+          hazard={hazard}
+          focus={selection?.center}
+          focusZoom={selection?.zoom}
+          modelLayer={geoLayers.demo ? modelLayer : null}
+          analysisLayer={geoLayers.analysis ? analysisRun?.hazard_layers[0] : null}
+          analysisOpacity={geoLayers.analysisOpacity}
+          showDemoLayer={geoLayers.demo}
+          onSelect={onSelect}
+          onViewportChange={setMapViewport}
+        />
 
         <div className="map-toolbar">
           <button className={panel === "layers" ? "active" : ""} onClick={() => setPanel(panel === "layers" ? "none" : "layers")}><Layers size={17} /> Layers <ChevronDown size={14} /></button>
@@ -503,9 +523,9 @@ export function RiskChainWorkspace() {
           {research && <><div className="source-state-row">{research.source_status.map((source) => <StatusBadge key={source.source} tone={source.status === "unavailable" ? "blocked" : "neutral"}>{source.source}: {source.status}</StatusBadge>)}</div><div className="paper-list">{research.results.map((paper) => <article key={paper.paper_id}><StatusBadge>{paper.human_review_status}</StatusBadge><h3>{paper.title}</h3><p>{paper.publisher}{paper.year ? ` · ${paper.year}` : ""}</p><small>{paper.peer_review_status} · relevance {(paper.relevance * 100).toFixed(0)}%</small></article>)}</div><p className="microcopy">{research.notice}</p></>}
         </section>}
 
-        {panel === "layers" && <aside className="floating-card compact-panel layers-panel"><div className="card-heading"><h2>Map layers</h2><button className="icon-button" onClick={() => setPanel("none")}><X size={16} /></button></div>{LIVE_FILTERS.filter((item) => item.id !== "all").map((item) => <button key={item.id} className="layer-row" onClick={() => setHazard(item.id)}><i style={{ background: item.color }} /><span><strong>{item.label}</strong><small>{scope === "local" && item.id === "flood" ? "Demo model layer" : "Official event locations; not impact footprints"}</small></span><input aria-label={`Toggle ${item.label}`} type="checkbox" readOnly checked={hazard === item.id} /></button>)}</aside>}
+        {panel === "layers" && <aside className="floating-card compact-panel layers-panel"><div className="card-heading"><div><span className="eyebrow">Visible workspace</span><h2>Map layers</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close map layers"><X size={16} /></button></div><label className="layer-switch"><span><strong>Official event markers</strong><small>GDACS locations; not impact footprints</small></span><input type="checkbox" checked={geoLayers.events} onChange={(event) => setGeoLayers({ ...geoLayers, events: event.target.checked })} /></label><label className="layer-switch"><span><strong>Analysis footprint</strong><small>{analysisRun ? "Published geometry from current run" : "No analysis result on map"}</small></span><input type="checkbox" disabled={!analysisRun} checked={geoLayers.analysis && Boolean(analysisRun)} onChange={(event) => setGeoLayers({ ...geoLayers, analysis: event.target.checked })} /></label><label className="layer-switch"><span><strong>Modelled demo layer</strong><small>{run || modelLayer ? "Labelled sample result" : "Open guided demo to activate"}</small></span><input type="checkbox" disabled={!run && !modelLayer} checked={geoLayers.demo && Boolean(run || modelLayer)} onChange={(event) => setGeoLayers({ ...geoLayers, demo: event.target.checked })} /></label><label className="layer-opacity"><span>Footprint opacity</span><strong className="number-value">{Math.round(geoLayers.analysisOpacity * 100)}%</strong><input type="range" min="10" max="80" step="5" value={Math.round(geoLayers.analysisOpacity * 100)} onChange={(event) => setGeoLayers({ ...geoLayers, analysisOpacity: Number(event.target.value) / 100 })} /></label><div className="layer-filter-title">Event filter</div>{LIVE_FILTERS.map((item) => <button key={item.id} className={`layer-row ${hazard === item.id ? "active" : ""}`} onClick={() => setHazard(item.id)}><i style={{ background: item.color }} /><span><strong>{item.label}</strong><small>Filter official event locations</small></span></button>)}<div className="future-layer-note"><Database size={14} /><span><strong>Future connectors</strong>PostGIS boundaries, Sentinel-2, Overture roads and 3D buildings are not configured in this deployment.</span></div></aside>}
 
-        {selection && <aside className="floating-card selection-card"><button className="card-close" onClick={() => setSelection(null)} aria-label="Close selection"><X size={17} /></button><StatusBadge tone={selection.status === "Demo" ? "demo" : selection.status === "Geocoded location" ? "neutral" : "live"}>{selection.status}</StatusBadge><h2>{selection.title}</h2><p>{selection.subtitle}</p><dl><div><dt>Source</dt><dd>{selection.source}</dd></div><div><dt>Coordinates</dt><dd>{selection.center[1].toFixed(5)}, {selection.center[0].toFixed(5)}</dd></div><div><dt>Interpretation</dt><dd>{selection.status === "Demo" ? "Scenario input; not a current observation" : selection.status === "Geocoded location" ? "Map position only; no hazard or risk has been calculated here" : "Reported event location; not an impact footprint"}</dd></div></dl>{selection.status === "Demo" ? <button className="primary" onClick={() => chooseView("model")}>Open model</button> : <><button className="primary readiness-button" onClick={openModelReadiness}><FlaskConical size={15} /> Check model readiness</button>{selection.status === "Officially reported" && <a className="secondary-link" href={events.find((item) => item.event_id === selection.id)?.report_url} target="_blank" rel="noreferrer">Open official report <ExternalLink size={15} /></a>}</>}</aside>}
+        {selection && view !== "model" && panel === "none" && <aside className="floating-card selection-card"><button className="card-close" onClick={() => setSelection(null)} aria-label="Close selection"><X size={17} /></button><StatusBadge tone={selection.status === "Demo" ? "demo" : selection.status === "Geocoded location" ? "neutral" : "live"}>{selection.status}</StatusBadge><h2>{selection.title}</h2><p>{selection.subtitle}</p><dl><div><dt>Source</dt><dd>{selection.source}</dd></div><div><dt>Coordinates</dt><dd>{selection.center[1].toFixed(5)}, {selection.center[0].toFixed(5)}</dd></div><div><dt>Interpretation</dt><dd>{selection.status === "Demo" ? "Scenario input; not a current observation" : selection.status === "Geocoded location" ? "Map position only; no hazard or risk has been calculated here" : "Reported event location; not an impact footprint"}</dd></div></dl>{selection.status === "Demo" ? <button className="primary" onClick={() => chooseView("model")}>Open model</button> : <><button className="primary readiness-button" onClick={openModelReadiness}><FlaskConical size={15} /> Check model readiness</button>{selection.status === "Officially reported" && <a className="secondary-link" href={events.find((item) => item.event_id === selection.id)?.report_url} target="_blank" rel="noreferrer">Open official report <ExternalLink size={15} /></a>}</>}</aside>}
 
         {panel === "sources" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close source coverage" /><aside className="drawer source-drawer"><div className="drawer-head"><div><span className="eyebrow">Data quality</span><h2>Source & coverage</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close source coverage panel"><X size={18} /></button></div><p className="drawer-intro">Every layer states whether it is live, modelled, inferred, demo, or unavailable. Different resolutions are never blended silently.</p><div className="coverage-summary"><span><strong>{coverage.filter((item) => item.availability === "available_live").length}</strong> live</span><span><strong>{coverage.filter((item) => item.availability === "available_demo").length}</strong> demo</span><span><strong>{coverage.filter((item) => item.availability === "unavailable").length}</strong> unavailable</span></div><div className="coverage-list">{coverage.map((item) => <details key={item.layer_id}><summary><StatusBadge tone={item.availability === "available_live" ? "live" : item.availability === "available_demo" ? "demo" : "blocked"}>{item.availability.replaceAll("_", " ")}</StatusBadge><span><strong>{item.label}</strong><small>{item.source}</small></span><ChevronDown size={15} /></summary><dl><div><dt>Use</dt><dd>{item.use_in_run}</dd></div><div><dt>Resolution</dt><dd>{item.geographic_resolution}</dd></div><div><dt>Origin</dt><dd>{item.attribute_origin.replaceAll("_", " ")}</dd></div></dl>{item.limitations[0] && <p>{item.limitations[0]}</p>}</details>)}</div></aside></>}
 
@@ -514,7 +534,7 @@ export function RiskChainWorkspace() {
 
         {panel === "account" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close account" /><aside className="drawer account-drawer"><div className="drawer-head"><div><span className="eyebrow">User workspace</span><h2>{user ? `Welcome, ${user.name}` : "Sign in to RiskChain"}</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close account"><X size={18} /></button></div>{user ? <div className="account-signed-in"><div className="account-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div><h3>{user.name}</h3><p>{user.email}</p><section><strong>Workspace status</strong><span>Browser-only demonstration profile</span><span>Runs saved on this device only</span><span>No private portfolio data uploaded</span></section><button onClick={signOutDemo}>Sign out</button></div> : <form className="account-form" onSubmit={signInDemo}><p>Create a local demonstration profile to keep recent run references on this device. This is not production authentication and does not create a cloud account.</p><label>Name<input value={accountName} onChange={(event) => setAccountName(event.target.value)} required autoComplete="name" /></label><label>Email<input type="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} required autoComplete="email" /></label><button className="primary" type="submit"><UserRound size={16} /> Continue to demo workspace</button><div className="method-note"><ShieldCheck size={16} /><p>A production release requires an identity provider, server-side sessions, organization roles, tenant isolation and audit logging.</p></div></form>}</aside></>}
 
-        {panel === "ai" && <aside className="ai-drawer"><div className="drawer-head"><div><span className="eyebrow">Approved tools only</span><h2>RiskChain Copilot</h2></div><button className="icon-button" onClick={() => setPanel("none")}><X size={18} /></button></div><div className="ai-guardrail"><ShieldCheck size={18} /><span>The AI interprets and explains. Approved backend engines calculate every number.</span></div>{aiAnswer && <div className="ai-answer">{aiAnswer}</div>}<form onSubmit={askCopilot}><textarea value={aiQuestion} onChange={(event) => setAiQuestion(event.target.value)} rows={4} /><button className="primary" type="submit" disabled={loading}><Bot size={16} /> {loading ? "Checking tools…" : "Ask grounded copilot"}</button></form><div className="prompt-chips">{["What data are missing?", "Audit this model run", "Explain AEP vs OEP"].map((prompt) => <button key={prompt} onClick={() => setAiQuestion(prompt)}>{prompt}</button>)}</div></aside>}
+        {panel === "ai" && <GeoAgentPanel onClose={() => setPanel("none")} view={view} scope={scope} hazard={hazard} selection={selection} viewport={mapViewport} visibleEventCount={geoLayers.events ? visibleEvents.length : 0} analysisRun={analysisRun} hasDemoRun={Boolean(run || modelLayer)} layers={geoLayers} onLayersChange={setGeoLayers} question={aiQuestion} onQuestionChange={setAiQuestion} answer={aiAnswer} loading={loading} onSubmit={askCopilot} />}
 
         {panel === "roadmap" && <aside className="drawer"><div className="drawer-head"><div><span className="eyebrow">Honest delivery status</span><h2>Product roadmap</h2></div><button className="icon-button" onClick={() => setPanel("none")}><X size={18} /></button></div><div className="roadmap-list">{roadmap?.milestones.map((item) => <article key={`${item.stage}-${item.name}`}><StatusBadge tone={item.status === "done" ? "live" : "neutral"}>{item.status.replaceAll("_", " ")}</StatusBadge><span className="budget">{item.budget_band} effort · {item.timeline}</span><h3>{item.name}</h3><p>{item.acceptance_gate}</p><small>Owner: {item.owner_role}</small></article>)}</div><p className="microcopy">{roadmap?.notice}</p></aside>}
       </section>

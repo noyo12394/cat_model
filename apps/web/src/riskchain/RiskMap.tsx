@@ -13,6 +13,8 @@ type Selection = {
   zoom?: number;
 };
 
+type MapViewport = { center: [number, number]; zoom: number };
+
 type Props = {
   events: GlobalEvent[];
   scope: "global" | "local";
@@ -22,7 +24,10 @@ type Props = {
   focusZoom?: number | null;
   modelLayer?: ModelResultLayer | null;
   analysisLayer?: AnalysisRunResult["hazard_layers"][number] | null;
+  analysisOpacity?: number;
+  showDemoLayer?: boolean;
   onSelect: (selection: Selection) => void;
+  onViewportChange?: (viewport: MapViewport) => void;
 };
 
 declare global {
@@ -66,13 +71,18 @@ function damageColor(value: number) {
   return "#8aa0ae";
 }
 
-export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, analysisLayer, onSelect }: Props) {
+export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, analysisLayer, analysisOpacity = 0.22, showDemoLayer = true, onSelect, onViewportChange }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const onSelectRef = useRef(onSelect);
+  const onViewportChangeRef = useRef(onViewportChange);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    onViewportChangeRef.current = onViewportChange;
+  }, [onViewportChange]);
 
   useEffect(() => {
     let active = true;
@@ -96,10 +106,14 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
             fullscreenControl: false,
             gestureHandling: "greedy",
           });
+          map.addListener("idle", () => {
+            const center = map.getCenter();
+            if (center) onViewportChangeRef.current?.({ center: [center.lng(), center.lat()], zoom: map.getZoom() ?? 0 });
+          });
           if (analysisLayer) {
             const data = new google.maps.Data({ map });
             data.addGeoJson(analysisLayer.geojson as Parameters<google.maps.Data["addGeoJson"]>[0]);
-            data.setStyle({ fillColor: "#1a73e8", fillOpacity: 0.2, strokeColor: "#1a73e8", strokeWeight: 2 });
+            data.setStyle({ fillColor: "#4FA8FF", fillOpacity: analysisOpacity, strokeColor: "#4FA8FF", strokeWeight: 2 });
           }
           events.slice(0, 160).forEach((event) => {
             const marker = new google.maps.Marker({
@@ -125,7 +139,7 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
               zoom: 7,
             }));
           });
-          if (scope === "local") {
+          if (scope === "local" && showDemoLayer) {
             new google.maps.Data({ map }).addGeoJson({
               type: "Feature",
               properties: { status: "demo" },
@@ -176,14 +190,21 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
       });
       mapLibre.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
       mapLibre.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+      const reportViewport = () => {
+        if (!mapLibre) return;
+        const center = mapLibre.getCenter();
+        onViewportChangeRef.current?.({ center: [center.lng, center.lat], zoom: mapLibre.getZoom() });
+      };
+      mapLibre.on("moveend", reportViewport);
       mapLibre.on("load", () => {
         if (!mapLibre) return;
+        reportViewport();
         if (analysisLayer) {
           mapLibre.addSource("analysis-hazard", { type: "geojson", data: analysisLayer.geojson as GeoJSON.FeatureCollection });
-          mapLibre.addLayer({ id: "analysis-hazard-fill", type: "fill", source: "analysis-hazard", paint: { "fill-color": "#1a73e8", "fill-opacity": 0.18 } });
-          mapLibre.addLayer({ id: "analysis-hazard-line", type: "line", source: "analysis-hazard", paint: { "line-color": "#1a73e8", "line-width": 2 } });
+          mapLibre.addLayer({ id: "analysis-hazard-fill", type: "fill", source: "analysis-hazard", paint: { "fill-color": "#4FA8FF", "fill-opacity": analysisOpacity } });
+          mapLibre.addLayer({ id: "analysis-hazard-line", type: "line", source: "analysis-hazard", paint: { "line-color": "#4FA8FF", "line-width": 2 } });
         }
-        if (scope === "local" && hazard === "flood") {
+        if (scope === "local" && hazard === "flood" && showDemoLayer) {
           mapLibre.addSource("demo-flood", {
             type: "geojson",
             data: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[[-75.395, 40.612], [-75.35, 40.612], [-75.344, 40.64], [-75.393, 40.642], [-75.395, 40.612]]] } },
@@ -201,7 +222,7 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
           node.onclick = () => onSelectRef.current({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 7 });
           new maplibregl.Marker({ element: node }).setLngLat(event.center).addTo(mapLibre!);
         });
-        if (scope === "local") {
+        if (scope === "local" && showDemoLayer) {
           const node = document.createElement("button");
           node.className = "map-event-marker local-pin";
           node.style.setProperty("--marker-color", "#1a73e8");
@@ -235,9 +256,9 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
       mapLibre?.remove();
       container?.replaceChildren();
     };
-  }, [analysisLayer, events, focus, focusZoom, hazard, modelLayer, operationsMode, scope]);
+  }, [analysisLayer, analysisOpacity, events, focus, focusZoom, hazard, modelLayer, operationsMode, scope, showDemoLayer]);
 
   return <div ref={ref} className="risk-map" role="application" aria-label="Interactive catastrophe risk map" />;
 }
 
-export type { Selection as MapSelection };
+export type { MapViewport, Selection as MapSelection };
