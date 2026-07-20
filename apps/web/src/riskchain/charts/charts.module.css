@@ -9,6 +9,11 @@
   padding-top: 14px;
 }
 
+.chartStack {
+  display: grid;
+  gap: 12px;
+}
+
 .tabs {
   display: flex;
   gap: 4px;
@@ -37,7 +42,7 @@
 
 .chartCard {
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: var(--radius, 14px);
   padding: 14px 14px 10px;
   background: var(--surface);
 }
@@ -67,7 +72,8 @@
 .axisText {
   fill: var(--muted);
   font-size: 10px;
-  font-family: inherit;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .gridLine {
