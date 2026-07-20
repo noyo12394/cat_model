@@ -375,7 +375,7 @@ export function RiskChainWorkspace() {
     if (!aiQuestion.trim()) return;
     setLoading(true);
     try {
-      const answer = await api.queryCopilot(aiQuestion.trim(), { hazard, location_label: scope === "local" ? "Bethlehem / Lehigh Valley, PA" : selection?.title, run_id: run?.run_id ?? analysisRun?.run_id, interface_mode: professionalMode ? "professional" : "guided" });
+      const answer = await api.queryCopilot(aiQuestion.trim(), { hazard: analysisRun?.hazard_type ?? hazard, location_label: scope === "local" ? "Bethlehem / Lehigh Valley, PA" : selection?.title, run_id: run?.run_id ?? analysisRun?.run_id, interface_mode: professionalMode ? "professional" : "guided" });
       setAiAnswer(answer);
     } catch (error) {
       setAiAnswer(null);
@@ -498,7 +498,7 @@ export function RiskChainWorkspace() {
             window.setTimeout(() => document.getElementById("global-place-search")?.focus(), 0);
           }}
           onDemo={async () => { applyBethlehemDemo(); await executeDemoRun(); }}
-          onResult={(result) => { setAnalysisRun(result); setRun(null); setProbabilistic(null); setModelLayer(null); setPanel("results"); }}
+          onResult={(result) => { setAnalysisRun(result); setHazard(result.hazard_type === "hurricane" ? "cyclone" : result.hazard_type); setRun(null); setProbabilistic(null); setModelLayer(null); setPanel("results"); }}
           onNotice={(message) => setNotice(message)}
         />}
 
@@ -534,7 +534,7 @@ export function RiskChainWorkspace() {
 
         {panel === "account" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close account" /><aside className="drawer account-drawer"><div className="drawer-head"><div><span className="eyebrow">User workspace</span><h2>{user ? `Welcome, ${user.name}` : "Sign in to RiskChain"}</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close account"><X size={18} /></button></div>{user ? <div className="account-signed-in"><div className="account-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div><h3>{user.name}</h3><p>{user.email}</p><section><strong>Workspace status</strong><span>Browser-only demonstration profile</span><span>Runs saved on this device only</span><span>No private portfolio data uploaded</span></section><button onClick={signOutDemo}>Sign out</button></div> : <form className="account-form" onSubmit={signInDemo}><p>Create a local demonstration profile to keep recent run references on this device. This is not production authentication and does not create a cloud account.</p><label>Name<input value={accountName} onChange={(event) => setAccountName(event.target.value)} required autoComplete="name" /></label><label>Email<input type="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} required autoComplete="email" /></label><button className="primary" type="submit"><UserRound size={16} /> Continue to demo workspace</button><div className="method-note"><ShieldCheck size={16} /><p>A production release requires an identity provider, server-side sessions, organization roles, tenant isolation and audit logging.</p></div></form>}</aside></>}
 
-        {panel === "ai" && <GeoAgentPanel onClose={() => setPanel("none")} view={view} scope={scope} hazard={hazard} selection={selection} viewport={mapViewport} visibleEventCount={geoLayers.events ? visibleEvents.length : 0} analysisRun={analysisRun} hasDemoRun={Boolean(run || modelLayer)} layers={geoLayers} onLayersChange={setGeoLayers} question={aiQuestion} onQuestionChange={setAiQuestion} answer={aiAnswer} loading={loading} onSubmit={askCopilot} />}
+        {panel === "ai" && <GeoAgentPanel onClose={() => setPanel("none")} view={view} scope={scope} hazard={analysisRun?.hazard_type ?? hazard} selection={selection} viewport={mapViewport} visibleEventCount={geoLayers.events ? visibleEvents.length : 0} analysisRun={analysisRun} hasDemoRun={Boolean(run || modelLayer)} layers={geoLayers} onLayersChange={setGeoLayers} question={aiQuestion} onQuestionChange={setAiQuestion} answer={aiAnswer} loading={loading} onSubmit={askCopilot} />}
 
         {panel === "roadmap" && <aside className="drawer"><div className="drawer-head"><div><span className="eyebrow">Honest delivery status</span><h2>Product roadmap</h2></div><button className="icon-button" onClick={() => setPanel("none")}><X size={18} /></button></div><div className="roadmap-list">{roadmap?.milestones.map((item) => <article key={`${item.stage}-${item.name}`}><StatusBadge tone={item.status === "done" ? "live" : "neutral"}>{item.status.replaceAll("_", " ")}</StatusBadge><span className="budget">{item.budget_band} effort · {item.timeline}</span><h3>{item.name}</h3><p>{item.acceptance_gate}</p><small>Owner: {item.owner_role}</small></article>)}</div><p className="microcopy">{roadmap?.notice}</p></aside>}
       </section>
