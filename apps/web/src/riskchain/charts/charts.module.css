@@ -179,3 +179,19 @@
   color: var(--muted);
   font-size: 12px;
 }
+
+@media (max-width: 560px) {
+  .panel { gap: 10px; margin-top: 12px; padding-top: 12px; }
+
+  .tabs { margin: 0 -2px; padding: 0 2px 2px; }
+
+  .tabs button { min-height: 36px; padding: 6px 11px; font-size: 11px; }
+
+  .chartCard { border-radius: 12px; padding: 12px 12px 10px; }
+
+  .sliderRow { grid-template-columns: 1fr; gap: 8px; }
+
+  .sliderValue { align-items: flex-start; min-width: 0; }
+
+  .sliderValue strong { font-size: 18px; }
+}

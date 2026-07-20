@@ -404,7 +404,7 @@ export function RiskChainWorkspace() {
     <main className={`riskchain-app ${operationsMode ? "operations" : ""}`}>
       <a href="#workspace" className="skip-link">Skip to map workspace</a>
       <header className="topbar">
-        <button className="icon-button mobile-menu" onClick={() => setMobileNav((value) => !value)} aria-label="Open navigation"><Menu size={20} /></button>
+        <button className="icon-button mobile-menu" onClick={() => setMobileNav((value) => !value)} aria-label={mobileNav ? "Close navigation" : "Open navigation"} aria-expanded={mobileNav} aria-controls="primary-navigation"><Menu size={20} /></button>
         <button className="brand" onClick={() => chooseView("explore")} aria-label="RiskChain home">
           <span className="brand-glyph"><Activity size={19} /></span>
           <span>Risk<span>Chain</span></span>
@@ -448,7 +448,7 @@ export function RiskChainWorkspace() {
         </div>
       </header>
 
-      <nav className={`nav-tabs ${mobileNav ? "open" : ""}`} aria-label="Primary">
+      <nav id="primary-navigation" className={`nav-tabs ${mobileNav ? "open" : ""}`} aria-label="Primary">
         {NAV.map((item) => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => chooseView(item.id)}><item.icon size={17} />{item.label}</button>)}
       </nav>
 
