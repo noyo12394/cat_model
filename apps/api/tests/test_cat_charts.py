@@ -100,4 +100,9 @@ def test_chart_endpoints_roundtrip():
         "/api/v1/cat/charts/fragility/vf-flood-residential-demo",
     ):
         assert client.get(path).status_code == 200, path
-    assert client.get("/api/v1/cat/model-runs/nope/charts/waterfall").status_code == 404
+    # Serverless-safe: an unknown run id recomputes the deterministic demo run
+    # (a cold function instance never saw the original POST) instead of 404-ing
+    # and locking the panel.
+    recomputed = client.get("/api/v1/cat/model-runs/nope/charts/waterfall?deductible_usd=25000&limit_usd=5000000&coinsurance=0.9")
+    assert recomputed.status_code == 200
+    assert recomputed.json()["steps"][-1]["amount_usd"] > 0
