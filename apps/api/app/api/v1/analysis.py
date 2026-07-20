@@ -4,9 +4,9 @@ from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import settings_dep
 from app.core.config import Settings
-from app.schemas.analysis import AnalysisHazard, AnalysisManifest, AnalysisMode, AnalysisRunRequest, AnalysisRunResult, AnalysisTotals, HazardEventSearchResponse
+from app.schemas.analysis import AnalysisHazard, AnalysisManifest, AnalysisMode, AnalysisRunRequest, AnalysisRunResult, AnalysisTotals, HazardEventSearchResponse, SourceRecord
 from app.services.cat.hazard_providers import provider_for
-from app.services.cat.screening import run_flood_zone_screening
+from app.services.cat.screening import run_flood_zone_screening, run_polygon_exposure_screening
 
 router=APIRouter(prefix="/cat",tags=["cat-analysis"]); CODE_VERSION="riskchain-analysis-0.2.0"
 
@@ -43,7 +43,14 @@ async def create_analysis(body:AnalysisRunRequest,settings:Settings=Depends(sett
         if provider and body.event_id:
             details=await provider.get_event_details(body.event_id,body.advisory_id); footprints=await provider.get_hazard_footprint(body.event_id,body.threshold or "MMI IV+")
             layers=[{"id":"official-hazard-footprint","name":"Official hazard footprint","geojson":{"type":"FeatureCollection","features":footprints},"classification":"observed/modelled","observed_forecast_modelled":"modelled"}] if footprints else []
-            status["hazard"]="loaded" if footprints else "event loaded; usable intensity footprint unavailable"; limitations.append("Event footprint loaded, but tract/NSI intersection is not yet completed." if footprints else "The epicenter or track is not treated as an impact area."); title=details.get("properties",{}).get("title") or body.event_id
+            status["hazard"]="loaded" if footprints else "event loaded; usable intensity footprint unavailable"
+            if footprints:
+                screening=await run_polygon_exposure_screening(footprints); sources=screening["sources"]; totals=screening["totals"]; limitations=screening["limitations"]
+                status["exposure"]="loaded" if totals.structures is not None else "unavailable"
+                source=provider.get_source_metadata(); sources.insert(0, SourceRecord(dataset="Official hazard footprint",provider=source["provider"],url=source["url"],version=body.advisory_id or "current advisory",retrieved_at=now,status="loaded",note="Published official geometry used for exposure screening."))
+            else:
+                limitations.append("The epicenter or track is not treated as an impact area.")
+            title=details.get("properties",{}).get("title") or body.event_id
         else:limitations.append("No compatible authoritative provider or footprint is available.")
     missing=[]
     if not layers:missing.append("usable hazard-intensity footprint")

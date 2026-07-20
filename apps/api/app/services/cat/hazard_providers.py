@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Protocol
 from app.adapters.base import safe_get_json
-from app.adapters.nhc import fetch_nhc_forecast_tracks
+from app.adapters.nhc import fetch_nhc_forecast_tracks, fetch_nhc_forecast_wind_radii
 from app.core.config import Settings
 from app.schemas.analysis import AnalysisHazard, HazardEventSearchResponse, HazardEventSummary
 
@@ -17,15 +17,18 @@ class HazardProvider(Protocol):
 class NHCProvider:
     async def get_active_events(self)->HazardEventSearchResponse:
         response=await fetch_nhc_forecast_tracks()
-        events=[HazardEventSummary(provider="NHC",provider_event_id=t.event_id,hazard_type="hurricane",name=f"{t.storm_type} {t.name}",status="active",start_time=t.valid_from,update_time=t.observed_at,center=t.points[0].center if t.points else None,source_url=t.advisory_url,source_version=t.observed_at.isoformat() if t.observed_at else "current feed",classification="forecast",advisory_id=t.observed_at.isoformat() if t.observed_at else None,footprint_available=False,limitations=["The forecast track is not an impact footprint. Official wind, warning, or surge geometry is required."]) for t in response.items]
+        events=[HazardEventSummary(provider="NHC",provider_event_id=t.event_id,hazard_type="hurricane",name=f"{t.storm_type} {t.name}",status="active",start_time=t.valid_from,update_time=t.observed_at,center=t.points[0].center if t.points else None,source_url=t.advisory_url,source_version=t.observed_at.isoformat() if t.observed_at else "current feed",classification="forecast",advisory_id=t.observed_at.isoformat() if t.observed_at else None,footprint_available=bool(t.wind_field_url),limitations=[] if t.wind_field_url else ["The forecast track is not an impact footprint. This advisory has no published NHC forecast-wind GIS product."]) for t in response.items]
         message=None if events else ("No active NHC tropical cyclone is currently available." if response.status.value=="live" else "The official NHC feed is unavailable; no substitute event is shown.")
         return HazardEventSearchResponse(events=events,provider="National Hurricane Center",retrieved_at=response.retrieved_at,data_status="live" if response.status.value=="live" else "unavailable",message=message)
     async def search_historical_events(self,start:date,end:date)->HazardEventSearchResponse:
         return HazardEventSearchResponse(events=[],provider="National Hurricane Center",retrieved_at=datetime.now(timezone.utc),data_status="unavailable",message="Historical NHC best-track search is not connected in this release.")
     async def get_event_details(self,event_id:str,advisory_id:str|None=None)->dict:
         response=await self.get_active_events(); event=next((x for x in response.events if x.provider_event_id==event_id),None)
-        return event.model_dump(mode="json") if event else {}
-    async def get_hazard_footprint(self,event_id:str,threshold:str)->list[dict]: return []
+        return {"properties":{"title":event.name},"event":event.model_dump(mode="json")} if event else {}
+    async def get_hazard_footprint(self,event_id:str,threshold:str)->list[dict]:
+        response=await fetch_nhc_forecast_tracks(); track=next((item for item in response.items if item.event_id==event_id),None)
+        if not track or "34-knot" not in threshold.lower(): return []
+        return await fetch_nhc_forecast_wind_radii(track,34)
     def get_source_metadata(self)->dict: return {"provider":"NHC","url":"https://www.nhc.noaa.gov/gis/"}
 
 class USGSEarthquakeProvider:

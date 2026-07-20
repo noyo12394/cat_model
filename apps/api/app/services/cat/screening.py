@@ -88,3 +88,51 @@ async def run_flood_zone_screening(location: AnalysisLocation, return_period: in
     loaded=any(s.dataset.startswith("National Structure") and s.status=="loaded" for s in sources)
     totals=AnalysisTotals(structures=len(structures) if loaded else None,population=round(sum(pv)) if pv else None,structure_value_usd=sum(sv) if sv else None,contents_value_usd=sum(cv) if cv else None,valid_assets=0,excluded_assets=len(structures))
     return {"zones":zones,"sources":sources,"totals":totals,"limitations":limitations}
+
+
+async def run_polygon_exposure_screening(footprints: list[dict[str, Any]]) -> dict[str, Any]:
+    """Aggregate NSI exposure strictly inside supplied authoritative polygons.
+
+    The caller owns the hazard source and classification.  This function never
+    infers intensity or loss from a footprint; it only reports the exposure
+    records returned by USACE's documented polygon intersection endpoint.
+    """
+    retrieved_at = datetime.now(timezone.utc)
+    sources: list[SourceRecord] = []
+    structures: list[dict[str, Any]] = []
+    hazard_features = [
+        {"type": "Feature", "geometry": feature.get("geometry"), "properties": {}}
+        for feature in footprints
+        if feature.get("geometry")
+    ]
+    if hazard_features:
+        try:
+            async with httpx.AsyncClient(timeout=25.0) as client:
+                features = await _query_nsi_polygons(client, hazard_features)
+            if len(features) > 10_000:
+                raise ValueError("NSI response exceeded safe limit")
+            unique: dict[str, dict[str, Any]] = {}
+            for feature in features:
+                props = feature.get("properties", {})
+                key = str(props.get("fd_id") or props.get("bid") or feature.get("id") or feature.get("geometry"))
+                unique[key] = feature
+            structures = list(unique.values())
+            sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="loaded", note=f"{len(structures)} points intersected the supplied official hazard polygons."))
+        except (httpx.HTTPError, ValueError, TypeError, KeyError):
+            sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="unavailable", note="Request failed or exceeded the safe screening limit; no substitute exposure values were used."))
+
+    def vals(*keys: str) -> list[float]:
+        output: list[float] = []
+        for item in structures:
+            props = item.get("properties", {})
+            value = next((props.get(key) for key in keys if isinstance(props.get(key), (int, float))), None)
+            if value is not None:
+                output.append(float(value))
+        return output
+
+    structure_values = vals("val_struct", "val_struct_d")
+    contents_values = vals("val_cont", "val_cont_d")
+    population_values = vals("pop2amu65", "pop2pmu65")
+    loaded = any(source.dataset.startswith("National Structure") and source.status == "loaded" for source in sources)
+    totals = AnalysisTotals(structures=len(structures) if loaded else None, population=round(sum(population_values)) if population_values else None, structure_value_usd=sum(structure_values) if structure_values else None, contents_value_usd=sum(contents_values) if contents_values else None, valid_assets=0, excluded_assets=len(structures))
+    return {"sources": sources, "totals": totals, "limitations": ["Hazard-polygon membership is exposure screening only. Asset-level wind intensity and compatible vulnerability are not available, so no damage or dollar loss is calculated.", "NSI is a modelled national inventory for screening, not verified structure-level appraisal."]}

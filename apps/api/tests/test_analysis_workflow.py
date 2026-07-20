@@ -32,3 +32,22 @@ async def test_failed_exposure_preserves_hazard(monkeypatch):
     monkeypatch.setattr(analysis,"run_flood_zone_screening",fake)
     result=await analysis.create_analysis(AnalysisRunRequest(mode="hypothetical",hazard_type="flood",location=LOCATION,return_period_years=500),Settings())
     assert result.hazard_layers and result.component_status["hazard"]=="loaded" and result.component_status["exposure"]=="unavailable" and result.loss is None
+
+
+@pytest.mark.asyncio
+async def test_official_event_polygon_runs_exposure_screening_without_loss(monkeypatch):
+    class Provider:
+        async def get_event_details(self,event_id,advisory_id=None): return {"properties":{"title":"Official wind-field advisory"}}
+        async def get_hazard_footprint(self,event_id,threshold):
+            assert threshold=="Official forecast 34-knot wind field"
+            return [{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-76,40],[-75,40],[-75,41],[-76,40]]]},"properties":{"wind_radius_knots":34}}]
+        def get_source_metadata(self): return {"provider":"National Hurricane Center","url":"https://www.nhc.noaa.gov/gis/"}
+    async def fake_screening(footprints):
+        assert footprints[0]["properties"]["wind_radius_knots"]==34
+        return {"sources":[SourceRecord(dataset="NSI",provider="USACE",url="https://nsi.sec.usace.army.mil",version="2026",retrieved_at=datetime.now(timezone.utc),status="loaded")],"totals":AnalysisTotals(structures=18,population=42,structure_value_usd=2_000_000,contents_value_usd=750_000,excluded_assets=18),"limitations":["No asset-level wind intensity."]}
+    monkeypatch.setattr(analysis,"provider_for",lambda hazard,settings:Provider())
+    monkeypatch.setattr(analysis,"run_polygon_exposure_screening",fake_screening)
+    result=await analysis.create_analysis(AnalysisRunRequest(mode="live",hazard_type="hurricane",event_id="NHC-AL022026",provider="NHC",threshold="Official forecast 34-knot wind field"),Settings())
+    assert result.result_type=="exposure_screening" and result.loss is None
+    assert result.component_status["hazard"]=="loaded" and result.component_status["exposure"]=="loaded"
+    assert result.totals.structures==18 and result.manifest.excluded_records["no_compatible_intensity"]==18

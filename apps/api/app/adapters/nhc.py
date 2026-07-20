@@ -49,6 +49,7 @@ class NHCForecastTrack:
     advisory_url: str
     track_url: str
     shape_url: str | None = None
+    wind_field_url: str | None = None
     points: list[NHCForecastPoint] = field(default_factory=list)
 
     @property
@@ -100,7 +101,7 @@ def _parse_feed(payload: bytes, basin: str) -> list[NHCForecastTrack]:
     for item in items:
         title = item.findtext("title") or ""
         link = item.findtext("link") or ""
-        if "Forecast" not in title or not (link.endswith(".kmz") or link.endswith(".zip")):
+        if not (link.endswith(".kmz") or link.endswith(".zip")) or ("Forecast" not in title and "Wind Field" not in title):
             continue
         match = re.search(r"\((?:[^/]+)/([^\)]+)\)", title)
         if match:
@@ -110,6 +111,8 @@ def _parse_feed(payload: bytes, basin: str) -> list[NHCForecastTrack]:
                 products["track"] = link.strip()
             elif "Forecast [shp]" in title:
                 products["shape"] = link.strip()
+            elif "Wind Field [shp]" in title:
+                products["wind_field"] = link.strip()
 
     tracks: list[NHCForecastTrack] = []
     for item in items:
@@ -132,6 +135,7 @@ def _parse_feed(payload: bytes, basin: str) -> list[NHCForecastTrack]:
                 advisory_url=(item.findtext("link") or "https://www.nhc.noaa.gov/").strip(),
                 track_url=products["track"],
                 shape_url=products.get("shape"),
+                wind_field_url=products.get("wind_field"),
             )
         )
     return tracks
@@ -222,6 +226,90 @@ def _parse_point_shapes(payload: bytes) -> list[tuple[float, float] | None]:
             points.append(None)
         offset = content_end
     return points
+
+
+def _parse_polygon_shapes(payload: bytes) -> list[list[list[tuple[float, float]]] | None]:
+    """Read Polygon records from a small NHC forecast-radii shapefile.
+
+    NHC distributes the official wind radii as ordinary WGS84 polygons.  The
+    compact reader keeps a heavy GIS runtime out of the API request path.
+    """
+    if len(payload) < 100:
+        return []
+    polygons: list[list[list[tuple[float, float]]] | None] = []
+    offset = 100
+    while offset + 12 <= len(payload):
+        content_words = struct.unpack_from(">I", payload, offset + 4)[0]
+        content_end = offset + 8 + content_words * 2
+        if content_end > len(payload) or content_words < 2:
+            break
+        content = offset + 8
+        shape_type = struct.unpack_from("<I", payload, content)[0]
+        if shape_type != 5 or content_end < content + 44:
+            polygons.append(None)
+            offset = content_end
+            continue
+        part_count = struct.unpack_from("<I", payload, content + 36)[0]
+        point_count = struct.unpack_from("<I", payload, content + 40)[0]
+        part_offset = content + 44
+        point_offset = part_offset + 4 * part_count
+        if not part_count or point_offset + 16 * point_count > content_end:
+            polygons.append(None)
+            offset = content_end
+            continue
+        part_indexes = list(struct.unpack_from(f"<{part_count}I", payload, part_offset))
+        points = [struct.unpack_from("<dd", payload, point_offset + 16 * index) for index in range(point_count)]
+        rings: list[list[tuple[float, float]]] = []
+        for index, start in enumerate(part_indexes):
+            end = part_indexes[index + 1] if index + 1 < len(part_indexes) else point_count
+            ring = list(points[start:end])
+            if len(ring) >= 3:
+                if ring[0] != ring[-1]:
+                    ring.append(ring[0])
+                rings.append(ring)
+        polygons.append(rings or None)
+        offset = content_end
+    return polygons
+
+
+def parse_nhc_forecast_wind_radii(payload: bytes, minimum_knots: int = 34) -> list[dict]:
+    """Return NHC's published forecast-wind-radius polygons as GeoJSON.
+
+    This is a forecast exposure footprint, not an observed wind field and not
+    a probability surface.  Only the requested official radius is returned.
+    """
+    try:
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            names = archive.namelist()
+            dbf_name = next(name for name in names if "forecastradii" in name.lower() and name.lower().endswith(".dbf"))
+            base = dbf_name.rsplit(".", 1)[0]
+            shp_name = next(name for name in names if name.rsplit(".", 1)[0] == base and name.lower().endswith(".shp"))
+            records = _parse_dbase_records(archive.read(dbf_name))
+            polygons = _parse_polygon_shapes(archive.read(shp_name))
+    except (OSError, StopIteration, zipfile.BadZipFile):
+        return []
+
+    features: list[dict] = []
+    for record, rings in zip(records, polygons, strict=False):
+        try:
+            radius = int(float(record.get("RADII", "")))
+        except ValueError:
+            continue
+        if radius != minimum_knots or not rings:
+            continue
+        features.append({
+            "type": "Feature",
+            "properties": {"wind_radius_knots": radius, "valid_time": record.get("VALIDTIME"), "storm_id": record.get("STORMID")},
+            "geometry": {"type": "Polygon", "coordinates": [[[lon, lat] for lon, lat in ring] for ring in rings]},
+        })
+    return features
+
+
+async def fetch_nhc_forecast_wind_radii(track: NHCForecastTrack, minimum_knots: int = 34) -> list[dict]:
+    if not track.wind_field_url:
+        return []
+    payload = await safe_get_bytes(track.wind_field_url)
+    return parse_nhc_forecast_wind_radii(payload, minimum_knots) if payload else []
 
 
 def _point_time(record: dict[str, str], observed_at: datetime | None) -> datetime | None:
