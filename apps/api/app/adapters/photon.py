@@ -84,6 +84,7 @@ async def suggest_places(
                 center=(float(coordinates[0]), float(coordinates[1])),
                 provider="Photon / OpenStreetMap",
                 zoom=zoom,
+                bbox=tuple(float(value) for value in feature["bbox"]) if isinstance(feature.get("bbox"), list) and len(feature["bbox"]) == 4 else None,
             ))
         except (KeyError, TypeError, ValueError, IndexError):
             continue

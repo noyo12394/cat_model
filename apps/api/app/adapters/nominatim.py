@@ -25,6 +25,7 @@ class GeocodedPlace:
     provider: str = "OpenStreetMap Nominatim"
     data_status: str = "live"
     zoom: float = 12.0
+    bbox: tuple[float, float, float, float] | None = None
 
 
 _cache: dict[str, tuple[float, list[GeocodedPlace]]] = {}
@@ -97,6 +98,7 @@ async def geocode_address(query: str, settings: Settings, limit: int = 5) -> lis
                     name=str(item["display_name"]),
                     center=(float(item["lon"]), float(item["lat"])),
                     zoom=zoom,
+                    bbox=(float(item["boundingbox"][2]), float(item["boundingbox"][0]), float(item["boundingbox"][3]), float(item["boundingbox"][1])) if isinstance(item.get("boundingbox"), list) and len(item["boundingbox"]) == 4 else None,
                 ))
             except (KeyError, TypeError, ValueError):
                 continue

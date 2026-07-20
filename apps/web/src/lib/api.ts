@@ -26,6 +26,7 @@ import type {
   ScenarioResult,
   SourceStatus,
   CatModelRunResult,
+  AnalysisHazard, AnalysisMode, AnalysisLocation, AnalysisRunResult, HazardEventSearchResponse,
   DataCoverageItem,
   ProbabilisticResult,
   VulnerabilityFunction,
@@ -79,6 +80,7 @@ export const api = {
     request<{ query: string; results: PlaceSearchResult[] }>(`/places/search?q=${encodeURIComponent(q)}`),
   suggestPlaces: (q: string) =>
     request<{ query: string; results: PlaceSearchResult[] }>(`/places/suggest?q=${encodeURIComponent(q)}`),
+  resolvePlace: (place: PlaceSearchResult) => request<PlaceSearchResult>(`/places/resolve?lon=${encodeURIComponent(place.center[0])}&lat=${encodeURIComponent(place.center[1])}&name=${encodeURIComponent(place.name)}&place_id=${encodeURIComponent(place.place_id)}`),
   getPlaceCapsule: (placeId: string) => request<LocationCapsule>(`/places/${placeId}/capsule`),
 
   listIncidents: (mode: "live" | "replay" = "live") =>
@@ -129,6 +131,8 @@ export const api = {
     method: "POST",
     body: JSON.stringify(body),
   }),
+  hazardEvents: (mode: Exclude<AnalysisMode,"demo">, hazard: AnalysisHazard, startDate?:string,endDate?:string) => { const params=new URLSearchParams({mode,hazard_type:hazard}); if(startDate)params.set("start_date",startDate); if(endDate)params.set("end_date",endDate); return request<HazardEventSearchResponse>(`/cat/hazard-events?${params.toString()}`); },
+  runAnalysis: (body:{mode:Exclude<AnalysisMode,"demo">;hazard_type:AnalysisHazard;location?:AnalysisLocation|null;provider?:string|null;event_id?:string|null;advisory_id?:string|null;threshold?:string|null;return_period_years?:number|null;start_date?:string|null;end_date?:string|null;exposure_dataset?:string;vulnerability_model?:string|null;simulation_count?:number;seed?:number}) => request<AnalysisRunResult>("/cat/analyses",{method:"POST",body:JSON.stringify(body)}),
   catDataCoverage: () => request<DataCoverageItem[]>("/cat/data-coverage"),
   catVulnerabilityFunctions: () => request<VulnerabilityFunction[]>("/cat/vulnerability-functions"),
   catProbabilisticResults: (runId: string, years = 5000) =>

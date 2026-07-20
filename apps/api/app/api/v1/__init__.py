@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    analysis,
     assistant,
     cat_charts,
     catmodel,
@@ -23,6 +24,7 @@ from app.api.v1 import (
 )
 
 api_router = APIRouter()
+api_router.include_router(analysis.router)
 api_router.include_router(live.router)
 api_router.include_router(places.router)
 api_router.include_router(incidents.router)

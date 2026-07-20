@@ -5,6 +5,10 @@ const nextConfig: NextConfig = {
   // local-dev-simple / cloud-deploy requirement) by tracing only the files
   // actually needed at runtime.
   output: "standalone",
+  // This repository is deployed with apps/web as Vercel's project root.
+  // Pinning it avoids an unrelated lockfile in a parent directory making
+  // Turbopack scan the user's entire home directory during local builds.
+  turbopack: { root: process.cwd() },
 };
 
 export default nextConfig;

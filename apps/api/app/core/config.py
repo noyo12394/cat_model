@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     usgs_quake_base_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0"
     gdacs_base_url: str = "https://www.gdacs.org/gdacsapi/api"
     firms_map_key: str | None = None  # NASA FIRMS MAP_KEY
+    nasa_firms_map_key: str | None = None
+    census_api_key: str | None = None
     airnow_api_key: str | None = None  # AirNow API key
     openfema_base_url: str = "https://www.fema.gov/api/open"
     nominatim_base_url: str = "https://nominatim.openstreetmap.org"

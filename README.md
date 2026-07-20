@@ -54,6 +54,37 @@ incident -> What may happen next -> Route Risk -> Scenario Lab.
 No API keys are required for any of this - see [Demo mode vs. live mode](#demo-mode-vs-live-mode)
 below.
 
+## Traceable CAT Model workflow
+
+The Model page separates Live Event, Historical Event, Hypothetical /
+Return-Period, and Sample Demonstration workflows. The source-backed path
+integrates Photon/OpenStreetMap and Nominatim geocoding, U.S. Census containing
+geographies, NHC active storms, USGS FDSN earthquakes and ShakeMap contours,
+FEMA effective NFHL flood zones, and USACE NSI 2026 Base exposure.
+
+FEMA zone membership does not provide building-level flood depth. Those runs
+therefore report exposure only and never calculate dollar damage. The bundled
+Bethlehem loss model is available only through **Use sample demonstration**,
+is permanently labelled Demo, and is never mixed with live source data.
+
+New routes are `GET /api/v1/places/resolve`, `GET
+/api/v1/cat/hazard-events`, `GET
+/api/v1/cat/hazard-events/{hazard_type}/{event_id}`, and `POST
+/api/v1/cat/analyses`. Each run embeds a reproducibility manifest containing
+resolved geography, provider event/advisory IDs, source retrieval records,
+missing and excluded inputs, seed/count, code version, assumptions, and the
+calculation summary.
+
+No key is required for NHC, USGS, FEMA NFHL, USACE NSI, Census Geocoder,
+Nominatim, or Photon. Keep `NASA_FIRMS_MAP_KEY`, `CENSUS_API_KEY`, map-provider
+keys, and database credentials server-side unless a variable is explicitly a
+browser-restricted `NEXT_PUBLIC_*` map key.
+
+Known coverage gaps are stated in the UI: historical NHC best-track search,
+wildfire perimeter analysis, live flood inundation, ACS profiles, ShakeMap
+tract aggregation, durable cross-instance run storage, and production
+vulnerability/loss functions remain unavailable.
+
 ## Repository layout
 
 ```text

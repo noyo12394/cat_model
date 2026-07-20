@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.adapters.nominatim import geocode_address
 from app.adapters.photon import suggest_places as suggest_geocoded_places
+from app.adapters.census_geocoder import lookup_geography
 from app.api.deps import repo_dep, settings_dep
 from app.core.config import Settings
 from app.db.memory_repository import MemoryRepository
@@ -21,6 +22,14 @@ class PlaceSearchResult(BaseModel):
     provider: str = "RiskChain place directory"
     data_status: str = "demo"
     zoom: float = 12.0
+    bbox: tuple[float, float, float, float] | None = None
+    state: str | None = None
+    state_fips: str | None = None
+    county: str | None = None
+    county_fips: str | None = None
+    tract: str | None = None
+    tract_geoid: str | None = None
+    geography_vintage: str | None = None
 
 
 class PlaceSearchResponse(BaseModel):
@@ -35,6 +44,7 @@ def _local_results(matches: list[dict]) -> list[PlaceSearchResult]:
             name=m["name"],
             center=m["center"],
             zoom=float(m.get("zoom", 12.0)),
+            bbox=m.get("bbox"),
         )
         for m in matches
     ]
@@ -61,6 +71,7 @@ async def suggest_places(
             provider=item.provider,
             data_status=item.data_status,
             zoom=item.zoom,
+            bbox=item.bbox,
         ))
         seen.add(item.name.casefold())
         if len(results) >= 6:
@@ -87,6 +98,7 @@ async def search_places(
                 provider=m.provider,
                 data_status=m.data_status,
                 zoom=m.zoom,
+                bbox=m.bbox,
             )
             for m in geocoded
         ]
@@ -94,6 +106,11 @@ async def search_places(
         query=q,
         results=results,
     )
+
+@router.get("/resolve", response_model=PlaceSearchResult)
+async def resolve_coordinates(lon: float = Query(..., ge=-180, le=180), lat: float = Query(..., ge=-90, le=90), name: str = Query("Selected location", min_length=1, max_length=200), place_id: str = Query("coordinates", min_length=1, max_length=200)) -> PlaceSearchResult:
+    geography = await lookup_geography(lon, lat)
+    return PlaceSearchResult(place_id=place_id, name=name, center=(lon, lat), provider="U.S. Census Geocoder" if geography else "Coordinate lookup", data_status="live" if geography else "unavailable", zoom=13, state=geography.state if geography else None, state_fips=geography.state_fips if geography else None, county=geography.county if geography else None, county_fips=geography.county_fips if geography else None, tract=geography.tract if geography else None, tract_geoid=geography.tract_geoid if geography else None, geography_vintage=geography.vintage if geography else None)
 
 
 @router.get("/{place_id}", response_model=PlaceSearchResult)

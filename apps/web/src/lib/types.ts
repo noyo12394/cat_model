@@ -15,6 +15,12 @@ export type CertaintyClass =
 export type Confidence = "low" | "moderate" | "high";
 export type Severity = "unknown" | "normal" | "watch" | "elevated" | "severe" | "extreme";
 export type DataStatus = "live" | "stale" | "unavailable" | "demo";
+export type AnalysisMode = "live" | "historical" | "hypothetical" | "demo";
+export type AnalysisHazard = "hurricane" | "earthquake" | "flood" | "wildfire";
+export interface AnalysisLocation { place_id:string; name:string; center:[number,number]; bbox?:[number,number,number,number]|null; state?:string|null; state_fips?:string|null; county?:string|null; county_fips?:string|null; tract?:string|null; tract_geoid?:string|null; geography_vintage?:string|null; }
+export interface HazardEventSummary { provider:string; provider_event_id:string; hazard_type:AnalysisHazard; name:string; status:string; start_time?:string|null; update_time?:string|null; center?:[number,number]|null; source_url:string; source_version:string; classification:"observed"|"forecast"|"scenario"; advisory_id?:string|null; footprint_available:boolean; limitations:string[]; }
+export interface HazardEventSearchResponse { events:HazardEventSummary[]; provider:string; retrieved_at:string; data_status:"live"|"unavailable"; message?:string|null; }
+export interface AnalysisRunResult { run_id:string; result_type:"exposure_screening"|"loss_estimate"; mode:AnalysisMode; hazard_type:AnalysisHazard; title:string; provider_event_id?:string|null; event_time?:string|null; analysis_time:string; geography?:AnalysisLocation|null; hazard_threshold?:string|null; hazard_layers:Array<{id:string;name:string;geojson:{type:"FeatureCollection";features:unknown[]};classification:string;observed_forecast_modelled:string}>; totals:{structures?:number|null;population?:number|null;structure_value_usd?:number|null;contents_value_usd?:number|null;valid_assets:number;excluded_assets:number}; confidence:{overall:string;components:Record<string,string>;explanation:string;ways_to_improve:string[]}; component_status:Record<string,string>; limitations:string[]; loss?:Record<string,unknown>|null; manifest:Record<string,unknown>&{run_id:string;created_at:string}; }
 
 export interface LossDistribution {
   mean_usd: number;
@@ -466,6 +472,14 @@ export interface PlaceSearchResult {
   provider?: string;
   data_status?: DataStatus;
   zoom?: number;
+  bbox?: [number, number, number, number] | null;
+  state?: string | null;
+  state_fips?: string | null;
+  county?: string | null;
+  county_fips?: string | null;
+  tract?: string | null;
+  tract_geoid?: string | null;
+  geography_vintage?: string | null;
 }
 
 export interface NearbyCondition {

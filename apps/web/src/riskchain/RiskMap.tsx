@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { GlobalEvent, ModelResultLayer } from "@/lib/types";
+import type { AnalysisRunResult, GlobalEvent, ModelResultLayer } from "@/lib/types";
 
 type Selection = {
   id: string;
@@ -21,6 +21,7 @@ type Props = {
   focus?: [number, number] | null;
   focusZoom?: number | null;
   modelLayer?: ModelResultLayer | null;
+  analysisLayer?: AnalysisRunResult["hazard_layers"][number] | null;
   onSelect: (selection: Selection) => void;
 };
 
@@ -65,7 +66,7 @@ function damageColor(value: number) {
   return "#8aa0ae";
 }
 
-export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, onSelect }: Props) {
+export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, analysisLayer, onSelect }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const onSelectRef = useRef(onSelect);
 
@@ -95,6 +96,11 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
             fullscreenControl: false,
             gestureHandling: "greedy",
           });
+          if (analysisLayer) {
+            const data = new google.maps.Data({ map });
+            data.addGeoJson(analysisLayer.geojson as Parameters<google.maps.Data["addGeoJson"]>[0]);
+            data.setStyle({ fillColor: "#1a73e8", fillOpacity: 0.2, strokeColor: "#1a73e8", strokeWeight: 2 });
+          }
           events.slice(0, 160).forEach((event) => {
             const marker = new google.maps.Marker({
               map,
@@ -172,6 +178,11 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
       mapLibre.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
       mapLibre.on("load", () => {
         if (!mapLibre) return;
+        if (analysisLayer) {
+          mapLibre.addSource("analysis-hazard", { type: "geojson", data: analysisLayer.geojson as GeoJSON.FeatureCollection });
+          mapLibre.addLayer({ id: "analysis-hazard-fill", type: "fill", source: "analysis-hazard", paint: { "fill-color": "#1a73e8", "fill-opacity": 0.18 } });
+          mapLibre.addLayer({ id: "analysis-hazard-line", type: "line", source: "analysis-hazard", paint: { "line-color": "#1a73e8", "line-width": 2 } });
+        }
         if (scope === "local" && hazard === "flood") {
           mapLibre.addSource("demo-flood", {
             type: "geojson",
@@ -224,7 +235,7 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
       mapLibre?.remove();
       container?.replaceChildren();
     };
-  }, [events, focus, focusZoom, hazard, modelLayer, operationsMode, scope]);
+  }, [analysisLayer, events, focus, focusZoom, hazard, modelLayer, operationsMode, scope]);
 
   return <div ref={ref} className="risk-map" role="application" aria-label="Interactive catastrophe risk map" />;
 }

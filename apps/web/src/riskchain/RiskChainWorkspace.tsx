@@ -4,18 +4,20 @@ import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, 
 import {
   Activity, AlertTriangle, BookOpen, Bot, CheckCircle2, ChevronDown, Database,
   Download, ExternalLink, FlaskConical, Globe2, GraduationCap, Layers,
-  Menu, Moon, Play, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
+  Menu, Moon, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
   UserRound, X,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type {
-  CatModelRunResult, DataCoverageItem, GlobalEventsResponse,
+  AnalysisLocation, AnalysisRunResult, CatModelRunResult, DataCoverageItem, GlobalEventsResponse,
   LearnLesson, LearnLessonSummary, ResearchSearchResponse, RoadmapResponse,
   ModelResultLayer, PlaceSearchResult, ProbabilisticResult, VulnerabilityFunction,
 } from "@/lib/types";
 import { RiskMap, type MapSelection } from "./RiskMap";
 import { ModelAnalytics } from "./ModelAnalytics";
 import { RunChartsPanel } from "./charts/RunChartsPanel";
+import { ModelBuilder } from "./ModelBuilder";
+import { AnalysisResults } from "./AnalysisResults";
 
 type View = "explore" | "model" | "live" | "learn" | "research";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account";
@@ -36,10 +38,6 @@ const LIVE_FILTERS = [
   { id: "wildfire", label: "Wildfire", color: "#f4511e" },
   { id: "drought", label: "Drought", color: "#a56a21" },
   { id: "volcano", label: "Volcano", color: "#5f6368" },
-];
-
-const MODEL_HAZARDS = [
-  { id: "flood", label: "Flood", color: "#1a73e8", available: true },
 ];
 
 type WorkspaceUser = { name: string; email: string };
@@ -68,6 +66,9 @@ export function RiskChainWorkspace() {
   const [lesson, setLesson] = useState<LearnLesson | null>(null);
   const [roadmap, setRoadmap] = useState<RoadmapResponse | null>(null);
   const [run, setRun] = useState<CatModelRunResult | null>(null);
+  const [analysisRun, setAnalysisRun] = useState<AnalysisRunResult | null>(null);
+  const [analysisLocation, setAnalysisLocation] = useState<AnalysisLocation | null>(null);
+  const [locationIntent, setLocationIntent] = useState(false);
   const [curves, setCurves] = useState<VulnerabilityFunction[]>([]);
   const [probabilistic, setProbabilistic] = useState<ProbabilisticResult | null>(null);
   const [modelLayer, setModelLayer] = useState<ModelResultLayer | null>(null);
@@ -78,22 +79,22 @@ export function RiskChainWorkspace() {
   const [searching, setSearching] = useState(false);
   const [searchInputFocused, setSearchInputFocused] = useState(false);
   const [activePlaceIndex, setActivePlaceIndex] = useState(-1);
-  const [deductible, setDeductible] = useState(100000);
-  const [limit, setLimit] = useState(5000000);
+  const deductible = 100000;
+  const limit = 5000000;
   const [researchQuery, setResearchQuery] = useState("validated flood depth-damage functions for commercial masonry buildings");
   const [research, setResearch] = useState<ResearchSearchResponse | null>(null);
   const [aiQuestion, setAiQuestion] = useState("Explain the largest uncertainty in this analysis.");
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [currentOnly, setCurrentOnly] = useState(true);
-  const [user, setUser] = useState<WorkspaceUser | null>(null);
+  const [user, setUser] = useState<WorkspaceUser | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { return JSON.parse(window.localStorage.getItem("riskchain-demo-user") ?? "null") as WorkspaceUser | null; }
+    catch { return null; }
+  });
   const [accountName, setAccountName] = useState("");
   const [accountEmail, setAccountEmail] = useState("");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("riskchain-demo-user");
-    if (saved) {
-      try { setUser(JSON.parse(saved) as WorkspaceUser); } catch { window.localStorage.removeItem("riskchain-demo-user"); }
-    }
     void Promise.allSettled([api.globalEvents(), api.catDataCoverage(), api.learnLessons(), api.roadmap(), api.catVulnerabilityFunctions()]).then((results) => {
       const [events, data, course, plan, vulnerability] = results;
       if (events.status === "fulfilled") setEventsResponse(events.value);
@@ -109,8 +110,6 @@ export function RiskChainWorkspace() {
   useEffect(() => {
     const term = query.trim();
     if (!searchInputFocused || term.length < 3) {
-      if (term.length < 3) setPlaceResults([]);
-      setActivePlaceIndex(-1);
       return;
     }
     let cancelled = false;
@@ -160,8 +159,6 @@ export function RiskChainWorkspace() {
   }, [currentOnly, events, hazard]);
 
   const onSelect = useCallback((next: MapSelection) => setSelection(next), []);
-  const modelAvailable = hazard === "flood" && (!selection || selection.id === "bethlehem-demo");
-
   function eventHazard(eventType: string) {
     if (/^(fl|flood)$/i.test(eventType)) return "flood";
     if (/^(eq|earthquake)$/i.test(eventType)) return "earthquake";
@@ -175,7 +172,7 @@ export function RiskChainWorkspace() {
     setMobileNav(false);
     setPanel("none");
     if (next === "model") {
-      if (!selection) setScope("local");
+      if (!selection) setScope("global");
       if (hazard === "all" || hazard === "cyclone" || hazard === "drought" || hazard === "volcano") setHazard("flood");
     }
     if (next === "live" || next === "explore") setScope("global");
@@ -193,6 +190,7 @@ export function RiskChainWorkspace() {
     setScope("local");
     setView("model");
     setSelection({ id: "bethlehem-demo", title: "Bethlehem, Pennsylvania", subtitle: "Flood demonstration area", status: "Demo", source: "RiskChain approved demonstration engine", center: [-75.3705, 40.6259], zoom: 13 });
+    setAnalysisLocation(null);
   }
 
   async function refreshEvents() {
@@ -233,18 +231,12 @@ export function RiskChainWorkspace() {
       setScope("global");
       return;
     }
-    if (/bethlehem|lehigh|18015|40\.62/.test(normalized)) {
-      setScope("local");
-      setView("model");
-      setSelection({ id: "bethlehem-demo", title: "Bethlehem, Pennsylvania", subtitle: "Flood demonstration area", status: "Demo", source: "RiskChain approved demonstration engine", center: [-75.3705, 40.6259] });
-      return;
-    }
     const coordinateMatch = normalized.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*[, ]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/);
     if (coordinateMatch) {
       const lat = Number(coordinateMatch[1]);
       const lon = Number(coordinateMatch[2]);
       if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
-        selectGeocodedPlace({ place_id: `coordinates-${lat}-${lon}`, name: `${lat.toFixed(5)}, ${lon.toFixed(5)}`, center: [lon, lat], provider: "User-supplied coordinates", data_status: "live", zoom: 13 });
+        void selectGeocodedPlace({ place_id: `coordinates-${lat}-${lon}`, name: `${lat.toFixed(5)}, ${lon.toFixed(5)}`, center: [lon, lat], provider: "User-supplied coordinates", data_status: "live", zoom: 13 });
         return;
       }
     }
@@ -252,7 +244,7 @@ export function RiskChainWorkspace() {
     try {
       const response = await api.searchPlaces(query.trim());
       if (response.results.length === 1) {
-        selectGeocodedPlace(response.results[0]);
+        await selectGeocodedPlace(response.results[0]);
       } else if (response.results.length > 1) {
         setPlaceResults(response.results);
       } else {
@@ -265,21 +257,38 @@ export function RiskChainWorkspace() {
     }
   }
 
-  function selectGeocodedPlace(place: PlaceSearchResult) {
-    setQuery(place.name);
+  async function selectGeocodedPlace(place: PlaceSearchResult) {
+    let resolved = place;
+    setSearching(true);
+    try {
+      const geography = await api.resolvePlace(place);
+      resolved = { ...place, ...geography, bbox: place.bbox ?? geography.bbox };
+    } catch {
+      setNotice("The place was located, but Census state/county/tract lookup is unavailable. Analysis remains blocked until geography is resolved.");
+    } finally {
+      setSearching(false);
+    }
+    setQuery(resolved.name);
     setPlaceResults([]);
     setActivePlaceIndex(-1);
     setSearchInputFocused(false);
     setScope("global");
-    setView("explore");
+    setView(locationIntent ? "model" : "explore");
+    setLocationIntent(false);
+    setAnalysisLocation({
+      place_id: resolved.place_id, name: resolved.name, center: resolved.center, bbox: resolved.bbox,
+      state: resolved.state, state_fips: resolved.state_fips, county: resolved.county,
+      county_fips: resolved.county_fips, tract: resolved.tract, tract_geoid: resolved.tract_geoid,
+      geography_vintage: resolved.geography_vintage,
+    });
     setSelection({
-      id: place.place_id,
-      title: place.name.split(",").slice(0, 2).join(","),
-      subtitle: place.name,
+      id: resolved.place_id,
+      title: resolved.name.split(",").slice(0, 2).join(","),
+      subtitle: [resolved.name, resolved.county, resolved.tract].filter(Boolean).join(" · "),
       status: "Geocoded location",
-      source: place.provider ?? "Place search provider",
-      center: place.center,
-      zoom: place.zoom ?? 12,
+      source: resolved.tract_geoid ? `${resolved.provider ?? "Place search provider"} + U.S. Census Geocoder` : resolved.provider ?? "Place search provider",
+      center: resolved.center,
+      zoom: resolved.zoom ?? 12,
     });
   }
 
@@ -302,19 +311,11 @@ export function RiskChainWorkspace() {
     if (event.key === "Enter") {
       event.preventDefault();
       if (activePlaceIndex >= 0 && activePlaceIndex < placeResults.length) {
-        selectGeocodedPlace(placeResults[activePlaceIndex]);
+        void selectGeocodedPlace(placeResults[activePlaceIndex]);
       } else {
         event.currentTarget.form?.requestSubmit();
       }
     }
-  }
-
-  async function runModel() {
-    if (!modelAvailable) {
-      setNotice("This place or peril does not yet have the required hazard surface, exposure inventory and reviewed vulnerability model. No loss was calculated.");
-      return;
-    }
-    await executeDemoRun();
   }
 
   async function executeDemoRun() {
@@ -329,6 +330,7 @@ export function RiskChainWorkspace() {
         seed: 12345,
         iterations: 2000,
       });
+      setAnalysisRun(null);
       setRun(result);
       setPanel("results");
       void api.catVulnerabilityFunctions().then(setCurves).catch(() => setCurves([]));
@@ -387,6 +389,17 @@ export function RiskChainWorkspace() {
     URL.revokeObjectURL(url);
   }
 
+  function exportAnalysisRun() {
+    if (!analysisRun) return;
+    const blob = new Blob([JSON.stringify(analysisRun.manifest, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${analysisRun.run_id}-manifest.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <main className={`riskchain-app ${operationsMode ? "operations" : ""}`}>
       <a href="#workspace" className="skip-link">Skip to map workspace</a>
@@ -400,10 +413,12 @@ export function RiskChainWorkspace() {
         <form className="map-search" onSubmit={(event) => void searchLocation(event)}>
           <Search size={19} />
           <input
+            id="global-place-search"
             value={query}
             onFocus={() => setSearchInputFocused(true)}
             onChange={(event) => {
               setQuery(event.target.value);
+              if (event.target.value.trim().length < 3) setPlaceResults([]);
               setSearchInputFocused(true);
               setActivePlaceIndex(-1);
             }}
@@ -416,10 +431,12 @@ export function RiskChainWorkspace() {
             aria-controls="place-search-results"
             aria-activedescendant={activePlaceIndex >= 0 ? `place-option-${activePlaceIndex}` : undefined}
           />
+          {query && <button className="search-clear" type="button" onClick={() => { setQuery(""); setPlaceResults([]); setAnalysisLocation(null); setSelection(null); }} aria-label="Clear location search"><X size={15} /></button>}
           <button type="submit" disabled={searching} aria-label={searching ? "Finding place" : "Search place"}><Search size={16} /><span>{searching ? "Finding…" : "Search"}</span></button>
-          {searchInputFocused && (searching || placeResults.length > 0) && <div id="place-search-results" className="place-results" role="listbox" aria-label="Place search suggestions">
+          {searchInputFocused && (searching || query.trim().length >= 3) && <div id="place-search-results" className="place-results" role="listbox" aria-label="Place search suggestions">
             <div className="place-results-head"><span>{searching ? "Finding places…" : "Choose a place"}</span><button type="button" onClick={() => { setPlaceResults([]); setActivePlaceIndex(-1); }} aria-label="Close place results"><X size={15} /></button></div>
-            {placeResults.map((place, index) => <button id={`place-option-${index}`} className={activePlaceIndex === index ? "active" : ""} type="button" role="option" aria-selected={activePlaceIndex === index} key={place.place_id} onMouseDown={(event) => event.preventDefault()} onClick={() => selectGeocodedPlace(place)}><Globe2 size={16} /><span><strong>{place.name.split(",").slice(0, 2).join(",")}</strong><small>{place.name}</small></span></button>)}
+            {!searching && placeResults.length === 0 && <div className="place-empty">No suggestions found. Press Search to try the submit geocoder.</div>}
+            {placeResults.map((place, index) => <button id={`place-option-${index}`} className={activePlaceIndex === index ? "active" : ""} type="button" role="option" aria-selected={activePlaceIndex === index} key={place.place_id} onMouseDown={(event) => event.preventDefault()} onClick={() => void selectGeocodedPlace(place)}><Globe2 size={16} /><span><strong>{place.name.split(",").slice(0, 2).join(",")}</strong><small>{place.name}</small></span></button>)}
             <p>↑↓ to choose · Enter to select · position only, not a risk result · suggestions by Photon/Komoot · © OpenStreetMap contributors</p>
           </div>}
         </form>
@@ -436,7 +453,7 @@ export function RiskChainWorkspace() {
       </nav>
 
       <section id="workspace" className="workspace">
-        <RiskMap events={scope === "global" ? visibleEvents : []} scope={scope} operationsMode={operationsMode} hazard={hazard} focus={selection?.center} focusZoom={selection?.zoom} modelLayer={modelLayer} onSelect={onSelect} />
+        <RiskMap events={scope === "global" ? visibleEvents : []} scope={scope} operationsMode={operationsMode} hazard={hazard} focus={selection?.center} focusZoom={selection?.zoom} modelLayer={modelLayer} analysisLayer={analysisRun?.hazard_layers[0]} onSelect={onSelect} />
 
         <div className="map-toolbar">
           <button className={panel === "layers" ? "active" : ""} onClick={() => setPanel(panel === "layers" ? "none" : "layers")}><Layers size={17} /> Layers <ChevronDown size={14} /></button>
@@ -449,20 +466,22 @@ export function RiskChainWorkspace() {
         {view === "explore" && <section className="floating-card intro-card">
           <StatusBadge tone="live">Map-first workspace</StatusBadge>
           <h1>Understand catastrophe risk, one place at a time.</h1>
-          <p>Explore official global events or move into a transparent, clearly labelled flood model for Bethlehem.</p>
+          <p>Explore official events, screen source-backed U.S. flood exposure, or open a separate labelled sample model.</p>
           <div className="intro-actions"><button className="primary" onClick={() => chooseView("live")}><Radio size={17} /> See live events</button><button onClick={startGuidedDemo}><FlaskConical size={17} /> Run a guided demo</button></div>
           <div className="trust-row"><span><ShieldCheck size={15} /> Sources visible</span><span><CheckCircle2 size={15} /> Ranges, not false precision</span></div>
         </section>}
 
-        {view === "model" && <section className="floating-card scenario-card">
-          <div className="card-heading"><div><span className="eyebrow">Guided model</span><h2>Build a risk scenario</h2></div><StatusBadge tone={modelAvailable ? "demo" : "warning"}>{modelAvailable ? "Runnable demo" : "Coverage check"}</StatusBadge></div>
-          <label>1 · Location<input value={selection?.title ?? "Bethlehem / Lehigh Valley, PA"} readOnly /></label>
-          <fieldset><legend>2 · Hazard</legend><div className="hazard-grid">{MODEL_HAZARDS.map((item) => <button key={item.id} className={hazard === item.id ? "selected" : ""} onClick={() => setHazard(item.id)} style={{ "--hazard": item.color } as React.CSSProperties}><i />{item.label}</button>)}</div><p className="coming-soon">More approved models in development: earthquake, wildfire and severe wind.</p></fieldset>
-          <label>3 · Scenario<select disabled={!modelAvailable}><option>{modelAvailable ? "100-year flood event (demo)" : "No executable model for this selection"}</option></select></label>
-          {professionalMode && <div className="pro-fields"><label>Deductible (USD)<input type="number" min="0" value={deductible} onChange={(event) => setDeductible(Number(event.target.value))} /></label><label>Limit (USD)<input type="number" min="0" value={limit} onChange={(event) => setLimit(Number(event.target.value))} /></label></div>}
-          {modelAvailable ? <div className="assumption-note"><AlertTriangle size={16} /><span><strong>Before you run</strong> Hazard depths, exposure and vulnerability functions are labelled demonstration inputs—not live observations.</span></div> : <div className="readiness-block"><h3>Why the model is blocked</h3><ol><li><CheckCircle2 /> Region located</li><li><X /> Hazard intensity surface not connected</li><li><X /> Exposure inventory not connected</li><li><X /> Reviewed vulnerability model not approved</li></ol><p>RiskChain will not turn a GDACS marker or a geocoded address into a loss estimate.</p><button type="button" onClick={applyBethlehemDemo}>Use supported Bethlehem demo</button></div>}
-          <button className="primary run-button" disabled={loading || !modelAvailable} onClick={runModel}><Play size={17} fill="currentColor" /> {loading ? "Running approved engine…" : modelAvailable ? "Run risk analysis" : "Model unavailable"}</button>
-        </section>}
+        {view === "model" && <ModelBuilder
+          location={analysisLocation}
+          onRequestLocation={() => {
+            setLocationIntent(true);
+            setNotice("Search above and select a suggestion. RiskChain will resolve its county and Census tract before enabling the scenario.");
+            window.setTimeout(() => document.getElementById("global-place-search")?.focus(), 0);
+          }}
+          onDemo={async () => { applyBethlehemDemo(); await executeDemoRun(); }}
+          onResult={(result) => { setAnalysisRun(result); setRun(null); setProbabilistic(null); setModelLayer(null); setPanel("results"); }}
+          onNotice={(message) => setNotice(message)}
+        />}
 
         {view === "live" && <section className="floating-card live-card">
           <div className="card-heading"><div><span className="eyebrow">Official event picture</span><h2>Major disasters now</h2></div><div className="live-head-actions"><StatusBadge tone={eventsResponse?.data_status === "live" ? "live" : "warning"}>{eventsResponse?.data_status ?? "loading"}</StatusBadge><button className="icon-button" onClick={() => void refreshEvents()} aria-label="Refresh official events"><RefreshCw size={15} /></button></div></div>
@@ -491,7 +510,8 @@ export function RiskChainWorkspace() {
 
         {panel === "sources" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close source coverage" /><aside className="drawer source-drawer"><div className="drawer-head"><div><span className="eyebrow">Data quality</span><h2>Source & coverage</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close source coverage panel"><X size={18} /></button></div><p className="drawer-intro">Every layer states whether it is live, modelled, inferred, demo, or unavailable. Different resolutions are never blended silently.</p><div className="coverage-summary"><span><strong>{coverage.filter((item) => item.availability === "available_live").length}</strong> live</span><span><strong>{coverage.filter((item) => item.availability === "available_demo").length}</strong> demo</span><span><strong>{coverage.filter((item) => item.availability === "unavailable").length}</strong> unavailable</span></div><div className="coverage-list">{coverage.map((item) => <details key={item.layer_id}><summary><StatusBadge tone={item.availability === "available_live" ? "live" : item.availability === "available_demo" ? "demo" : "warning"}>{item.availability.replaceAll("_", " ")}</StatusBadge><span><strong>{item.label}</strong><small>{item.source}</small></span><ChevronDown size={15} /></summary><dl><div><dt>Use</dt><dd>{item.use_in_run}</dd></div><div><dt>Resolution</dt><dd>{item.geographic_resolution}</dd></div><div><dt>Origin</dt><dd>{item.attribute_origin.replaceAll("_", " ")}</dd></div></dl>{item.limitations[0] && <p>{item.limitations[0]}</p>}</details>)}</div></aside></>}
 
-        {panel === "results" && run && <aside className="results-drawer analytics-drawer"><div className="drawer-head"><div><StatusBadge tone="demo">Modelled · demo</StatusBadge><h2>{run.scenario_label}</h2><p>{run.region_label}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close model results"><X size={18} /></button></div><ModelAnalytics run={run} curves={curves} probabilistic={probabilistic} /><RunChartsPanel run={run} /><div className="drawer-actions"><button className="primary" onClick={exportRun}><Download size={16} /> Download manifest</button><button onClick={() => setPanel("ai")}><Bot size={16} /> Explain result</button></div><p className="microcopy">This is a research demonstration. It is not an underwriting quote, official flood map, or emergency warning.</p></aside>}
+        {panel === "results" && run && <aside className="results-drawer analytics-drawer"><div className="drawer-head"><div><StatusBadge tone="demo">Demo · modelled inputs</StatusBadge><h2>{run.scenario_label}</h2><p>{run.region_label}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close model results"><X size={18} /></button></div><ModelAnalytics run={run} curves={curves} probabilistic={probabilistic} /><RunChartsPanel run={run} /><div className="drawer-actions"><button className="primary" onClick={exportRun}><Download size={16} /> Download manifest</button><button onClick={() => setPanel("ai")}><Bot size={16} /> Explain result</button></div><p className="microcopy">Bundled sample demonstration; values are not observations or a current event.</p></aside>}
+        {panel === "results" && analysisRun && !run && <aside className="results-drawer analytics-drawer"><div className="drawer-head"><div><StatusBadge tone="live">Source-backed screening</StatusBadge><h2>{analysisRun.title}</h2><p>{analysisRun.geography?.name ?? analysisRun.provider_event_id ?? "Selected event"} · run {analysisRun.run_id.slice(0, 12)}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close analysis results"><X size={18} /></button></div><AnalysisResults result={analysisRun} onDownload={exportAnalysisRun} /></aside>}
 
         {panel === "account" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close account" /><aside className="drawer account-drawer"><div className="drawer-head"><div><span className="eyebrow">User workspace</span><h2>{user ? `Welcome, ${user.name}` : "Sign in to RiskChain"}</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close account"><X size={18} /></button></div>{user ? <div className="account-signed-in"><div className="account-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div><h3>{user.name}</h3><p>{user.email}</p><section><strong>Workspace status</strong><span>Browser-only demonstration profile</span><span>Runs saved on this device only</span><span>No private portfolio data uploaded</span></section><button onClick={signOutDemo}>Sign out</button></div> : <form className="account-form" onSubmit={signInDemo}><p>Create a local demonstration profile to keep recent run references on this device. This is not production authentication and does not create a cloud account.</p><label>Name<input value={accountName} onChange={(event) => setAccountName(event.target.value)} required autoComplete="name" /></label><label>Email<input type="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} required autoComplete="email" /></label><button className="primary" type="submit"><UserRound size={16} /> Continue to demo workspace</button><div className="method-note"><ShieldCheck size={16} /><p>A production release requires an identity provider, server-side sessions, organization roles, tenant isolation and audit logging.</p></div></form>}</aside></>}
 
