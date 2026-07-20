@@ -15,6 +15,7 @@ import type {
 } from "@/lib/types";
 import { RiskMap, type MapSelection } from "./RiskMap";
 import { ModelAnalytics } from "./ModelAnalytics";
+import { RunChartsPanel } from "./charts/RunChartsPanel";
 
 type View = "explore" | "model" | "live" | "learn" | "research";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account";
@@ -187,7 +188,7 @@ export function RiskChainWorkspace() {
     setPanel("none");
   }
 
-  function useBethlehemDemo() {
+  function applyBethlehemDemo() {
     setHazard("flood");
     setScope("local");
     setView("model");
@@ -347,7 +348,7 @@ export function RiskChainWorkspace() {
   }
 
   function startGuidedDemo() {
-    useBethlehemDemo();
+    applyBethlehemDemo();
     window.setTimeout(() => void executeDemoRun(), 0);
   }
 
@@ -459,7 +460,7 @@ export function RiskChainWorkspace() {
           <fieldset><legend>2 · Hazard</legend><div className="hazard-grid">{MODEL_HAZARDS.map((item) => <button key={item.id} className={hazard === item.id ? "selected" : ""} onClick={() => setHazard(item.id)} style={{ "--hazard": item.color } as React.CSSProperties}><i />{item.label}</button>)}</div><p className="coming-soon">More approved models in development: earthquake, wildfire and severe wind.</p></fieldset>
           <label>3 · Scenario<select disabled={!modelAvailable}><option>{modelAvailable ? "100-year flood event (demo)" : "No executable model for this selection"}</option></select></label>
           {professionalMode && <div className="pro-fields"><label>Deductible (USD)<input type="number" min="0" value={deductible} onChange={(event) => setDeductible(Number(event.target.value))} /></label><label>Limit (USD)<input type="number" min="0" value={limit} onChange={(event) => setLimit(Number(event.target.value))} /></label></div>}
-          {modelAvailable ? <div className="assumption-note"><AlertTriangle size={16} /><span><strong>Before you run</strong> Hazard depths, exposure and vulnerability functions are labelled demonstration inputs—not live observations.</span></div> : <div className="readiness-block"><h3>Why the model is blocked</h3><ol><li><CheckCircle2 /> Region located</li><li><X /> Hazard intensity surface not connected</li><li><X /> Exposure inventory not connected</li><li><X /> Reviewed vulnerability model not approved</li></ol><p>RiskChain will not turn a GDACS marker or a geocoded address into a loss estimate.</p><button type="button" onClick={useBethlehemDemo}>Use supported Bethlehem demo</button></div>}
+          {modelAvailable ? <div className="assumption-note"><AlertTriangle size={16} /><span><strong>Before you run</strong> Hazard depths, exposure and vulnerability functions are labelled demonstration inputs—not live observations.</span></div> : <div className="readiness-block"><h3>Why the model is blocked</h3><ol><li><CheckCircle2 /> Region located</li><li><X /> Hazard intensity surface not connected</li><li><X /> Exposure inventory not connected</li><li><X /> Reviewed vulnerability model not approved</li></ol><p>RiskChain will not turn a GDACS marker or a geocoded address into a loss estimate.</p><button type="button" onClick={applyBethlehemDemo}>Use supported Bethlehem demo</button></div>}
           <button className="primary run-button" disabled={loading || !modelAvailable} onClick={runModel}><Play size={17} fill="currentColor" /> {loading ? "Running approved engine…" : modelAvailable ? "Run risk analysis" : "Model unavailable"}</button>
         </section>}
 
@@ -490,7 +491,7 @@ export function RiskChainWorkspace() {
 
         {panel === "sources" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close source coverage" /><aside className="drawer source-drawer"><div className="drawer-head"><div><span className="eyebrow">Data quality</span><h2>Source & coverage</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close source coverage panel"><X size={18} /></button></div><p className="drawer-intro">Every layer states whether it is live, modelled, inferred, demo, or unavailable. Different resolutions are never blended silently.</p><div className="coverage-summary"><span><strong>{coverage.filter((item) => item.availability === "available_live").length}</strong> live</span><span><strong>{coverage.filter((item) => item.availability === "available_demo").length}</strong> demo</span><span><strong>{coverage.filter((item) => item.availability === "unavailable").length}</strong> unavailable</span></div><div className="coverage-list">{coverage.map((item) => <details key={item.layer_id}><summary><StatusBadge tone={item.availability === "available_live" ? "live" : item.availability === "available_demo" ? "demo" : "warning"}>{item.availability.replaceAll("_", " ")}</StatusBadge><span><strong>{item.label}</strong><small>{item.source}</small></span><ChevronDown size={15} /></summary><dl><div><dt>Use</dt><dd>{item.use_in_run}</dd></div><div><dt>Resolution</dt><dd>{item.geographic_resolution}</dd></div><div><dt>Origin</dt><dd>{item.attribute_origin.replaceAll("_", " ")}</dd></div></dl>{item.limitations[0] && <p>{item.limitations[0]}</p>}</details>)}</div></aside></>}
 
-        {panel === "results" && run && <aside className="results-drawer analytics-drawer"><div className="drawer-head"><div><StatusBadge tone="demo">Modelled · demo</StatusBadge><h2>{run.scenario_label}</h2><p>{run.region_label}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close model results"><X size={18} /></button></div><ModelAnalytics run={run} curves={curves} probabilistic={probabilistic} /><div className="drawer-actions"><button className="primary" onClick={exportRun}><Download size={16} /> Download manifest</button><button onClick={() => setPanel("ai")}><Bot size={16} /> Explain result</button></div><p className="microcopy">This is a research demonstration. It is not an underwriting quote, official flood map, or emergency warning.</p></aside>}
+        {panel === "results" && run && <aside className="results-drawer analytics-drawer"><div className="drawer-head"><div><StatusBadge tone="demo">Modelled · demo</StatusBadge><h2>{run.scenario_label}</h2><p>{run.region_label}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close model results"><X size={18} /></button></div><ModelAnalytics run={run} curves={curves} probabilistic={probabilistic} /><RunChartsPanel run={run} /><div className="drawer-actions"><button className="primary" onClick={exportRun}><Download size={16} /> Download manifest</button><button onClick={() => setPanel("ai")}><Bot size={16} /> Explain result</button></div><p className="microcopy">This is a research demonstration. It is not an underwriting quote, official flood map, or emergency warning.</p></aside>}
 
         {panel === "account" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close account" /><aside className="drawer account-drawer"><div className="drawer-head"><div><span className="eyebrow">User workspace</span><h2>{user ? `Welcome, ${user.name}` : "Sign in to RiskChain"}</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close account"><X size={18} /></button></div>{user ? <div className="account-signed-in"><div className="account-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div><h3>{user.name}</h3><p>{user.email}</p><section><strong>Workspace status</strong><span>Browser-only demonstration profile</span><span>Runs saved on this device only</span><span>No private portfolio data uploaded</span></section><button onClick={signOutDemo}>Sign out</button></div> : <form className="account-form" onSubmit={signInDemo}><p>Create a local demonstration profile to keep recent run references on this device. This is not production authentication and does not create a cloud account.</p><label>Name<input value={accountName} onChange={(event) => setAccountName(event.target.value)} required autoComplete="name" /></label><label>Email<input type="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} required autoComplete="email" /></label><button className="primary" type="submit"><UserRound size={16} /> Continue to demo workspace</button><div className="method-note"><ShieldCheck size={16} /><p>A production release requires an identity provider, server-side sessions, organization roles, tenant isolation and audit logging.</p></div></form>}</aside></>}
 
