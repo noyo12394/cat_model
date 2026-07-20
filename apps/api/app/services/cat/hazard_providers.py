@@ -65,4 +65,7 @@ class USGSEarthquakeProvider:
 def provider_for(hazard:AnalysisHazard,settings:Settings)->HazardProvider|None:
     if hazard==AnalysisHazard.HURRICANE:return NHCProvider()
     if hazard==AnalysisHazard.EARTHQUAKE:return USGSEarthquakeProvider(settings)
+    if hazard==AnalysisHazard.WILDFIRE:
+        from app.services.cat.wildfire_provider import NIFCWildfireProvider
+        return NIFCWildfireProvider()
     return None
