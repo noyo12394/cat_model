@@ -467,6 +467,7 @@ export function RiskChainWorkspace() {
           focus={selection?.center}
           focusZoom={selection?.zoom}
           modelLayer={geoLayers.demo ? modelLayer : null}
+          modelRun={run}
           analysisLayer={geoLayers.analysis ? analysisRun?.hazard_layers[0] : null}
           analysisOpacity={geoLayers.analysisOpacity}
           showDemoLayer={geoLayers.demo}

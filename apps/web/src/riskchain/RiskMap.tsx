@@ -1,264 +1,56 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { AnalysisRunResult, GlobalEvent, ModelResultLayer } from "@/lib/types";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { AnalysisRunResult, CatModelRunResult, GlobalEvent, ModelResultLayer } from "@/lib/types";
 
-type Selection = {
-  id: string;
-  title: string;
-  subtitle: string;
-  status: "Observed" | "Officially reported" | "Demo" | "Geocoded location";
-  source: string;
-  center: [number, number];
-  zoom?: number;
-};
-
+type Selection = { id: string; title: string; subtitle: string; status: "Observed" | "Officially reported" | "Demo" | "Geocoded location"; source: string; center: [number, number]; zoom?: number };
 type MapViewport = { center: [number, number]; zoom: number };
+type View = "markers" | "columns" | "hexbins";
+type Metric = "damage" | "building" | "total";
+type Asset = { id: string; name: string; occupancy: string; point: [number, number]; depth: number; ratio: number; building: number; contents: number; bi: number; total: number; extrapolated: boolean };
+type Props = { events: GlobalEvent[]; scope: "global" | "local"; operationsMode: boolean; hazard: string; focus?: [number, number] | null; focusZoom?: number | null; modelLayer?: ModelResultLayer | null; modelRun?: CatModelRunResult | null; analysisLayer?: AnalysisRunResult["hazard_layers"][number] | null; analysisOpacity?: number; showDemoLayer?: boolean; onSelect: (selection: Selection) => void; onViewportChange?: (viewport: MapViewport) => void };
 
-type Props = {
-  events: GlobalEvent[];
-  scope: "global" | "local";
-  operationsMode: boolean;
-  hazard: string;
-  focus?: [number, number] | null;
-  focusZoom?: number | null;
-  modelLayer?: ModelResultLayer | null;
-  analysisLayer?: AnalysisRunResult["hazard_layers"][number] | null;
-  analysisOpacity?: number;
-  showDemoLayer?: boolean;
-  onSelect: (selection: Selection) => void;
-  onViewportChange?: (viewport: MapViewport) => void;
-};
+const color = (r: number) => r >= .45 ? "#d93025" : r >= .25 ? "#f4511e" : r >= .1 ? "#f9ab00" : r > 0 ? "#1a73e8" : "#8aa0ae";
+const rgb = (r: number): [number, number, number, number] => r >= .45 ? [217,48,37,224] : r >= .25 ? [244,81,30,220] : r >= .1 ? [249,171,0,216] : r > 0 ? [26,115,232,210] : [138,160,174,190];
+const eventColor = (event: GlobalEvent) => event.alert_level === "red" ? "#d93025" : event.alert_level === "orange" ? "#f29900" : /eq|earth/i.test(event.event_type) ? "#7e57c2" : /wf|fire/i.test(event.event_type) ? "#f4511e" : /fl|flood/i.test(event.event_type) ? "#1a73e8" : "#188038";
+const usd = (v: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0, notation: v >= 1e6 ? "compact" : "standard" }).format(v);
+const escape = (v: string) => v.replace(/[&<>'"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", "'":"&#39;", '"':"&quot;" })[c] ?? c);
+const value = (asset: Asset, metric: Metric) => metric === "damage" ? asset.ratio : metric === "building" ? asset.building : asset.total;
+const label = (metric: Metric) => metric === "damage" ? "Mean damage ratio" : metric === "building" ? "Building loss" : "Total ground-up loss";
+const shown = (v: number, metric: Metric) => metric === "damage" ? `${(v * 100).toFixed(1)}%` : usd(v);
+const assetTip = (a: Asset) => `<div class="deck-tooltip"><strong>${escape(a.name)}</strong><span>${escape(a.occupancy)}</span><hr/><span>Flood depth <b>${a.depth.toFixed(2)} ft</b></span><span>Mean damage <b>${(a.ratio*100).toFixed(1)}%</b></span><span>Building <b>${usd(a.building)}</b></span><span>Contents <b>${usd(a.contents)}</b></span><span>Business interruption <b>${usd(a.bi)}</b></span><span>Total <b>${usd(a.total)}</b></span>${a.extrapolated ? "<em>Extrapolated result — see audit</em>" : ""}</div>`;
 
-declare global {
-  interface Window {
-    google?: typeof google;
-    __riskChainGoogleReady?: () => void;
-  }
-}
-
-let googleLoader: Promise<void> | null = null;
-
-function loadGoogle(apiKey: string) {
-  if (window.google?.maps) return Promise.resolve();
-  if (googleLoader) return googleLoader;
-  googleLoader = new Promise<void>((resolve, reject) => {
-    window.__riskChainGoogleReady = resolve;
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&callback=__riskChainGoogleReady&v=weekly`;
-    script.async = true;
-    script.onerror = () => reject(new Error("Google Maps failed to load"));
-    document.head.appendChild(script);
-  });
-  return googleLoader;
-}
-
-function eventColor(event: GlobalEvent) {
-  if (event.alert_level === "red") return "#d93025";
-  if (event.alert_level === "orange") return "#f29900";
-  const hazard = event.event_type.toLowerCase();
-  if (hazard === "eq" || hazard.includes("earth")) return "#7e57c2";
-  if (hazard === "wf" || hazard.includes("fire")) return "#f4511e";
-  if (hazard === "fl" || hazard.includes("flood")) return "#1a73e8";
-  return "#188038";
-}
-
-function damageColor(value: number) {
-  if (value >= 0.45) return "#d93025";
-  if (value >= 0.25) return "#f4511e";
-  if (value >= 0.1) return "#f9ab00";
-  if (value > 0) return "#1a73e8";
-  return "#8aa0ae";
-}
-
-export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, analysisLayer, analysisOpacity = 0.22, showDemoLayer = true, onSelect, onViewportChange }: Props) {
-  const ref = useRef<HTMLDivElement>(null);
-  const onSelectRef = useRef(onSelect);
-  const onViewportChangeRef = useRef(onViewportChange);
-
+export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, modelRun, analysisLayer, analysisOpacity = .22, showDemoLayer = true, onSelect, onViewportChange }: Props) {
+  const ref = useRef<HTMLDivElement>(null); const selectRef = useRef(onSelect); const viewportRef = useRef(onViewportChange);
+  const [view, setView] = useState<View>("markers"); const [metric, setMetric] = useState<Metric>("total"); const [resolution, setResolution] = useState(9); const [threeD, setThreeD] = useState(false);
+  const assets = useMemo<Asset[]>(() => {
+    if (!modelLayer || !modelRun) return [];
+    const byId = new Map(modelRun.asset_damage.map((a) => [a.asset_id, a]));
+    return modelLayer.geojson.features.flatMap((f) => { const a = byId.get(f.properties.asset_id); return a ? [{ id:a.asset_id, name:f.properties.name, occupancy:f.properties.occupancy, point:f.geometry.coordinates, depth:a.intensity, ratio:a.mean_damage_ratio, building:a.building_loss_usd, contents:a.contents_loss_usd, bi:a.business_interruption_loss_usd, total:a.ground_up_loss_usd, extrapolated:Boolean(a.extrapolated || f.properties.extrapolated) }] : []; });
+  }, [modelLayer, modelRun]);
+  const visualResults = scope === "local" && assets.length > 0;
+  useEffect(() => { selectRef.current = onSelect; }, [onSelect]); useEffect(() => { viewportRef.current = onViewportChange; }, [onViewportChange]); useEffect(() => { if (scope !== "local") setThreeD(false); }, [scope]);
   useEffect(() => {
-    onSelectRef.current = onSelect;
-  }, [onSelect]);
-
-  useEffect(() => {
-    onViewportChangeRef.current = onViewportChange;
-  }, [onViewportChange]);
-
-  useEffect(() => {
-    let active = true;
-    let mapLibre: import("maplibre-gl").Map | undefined;
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    const container = ref.current;
-
-    async function start() {
-      if (!container) return;
-      if (apiKey) {
-        try {
-          await loadGoogle(apiKey);
-          if (!active || !window.google) return;
-          const googleCenter = focus ? { lat: focus[1], lng: focus[0] } : scope === "global" ? { lat: 18, lng: 5 } : { lat: 40.6259, lng: -75.3705 };
-          const map = new google.maps.Map(container, {
-            center: googleCenter,
-            zoom: focus ? (focusZoom ?? 12) : scope === "global" ? 2 : 13,
-            mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID",
-            streetViewControl: false,
-            mapTypeControl: false,
-            fullscreenControl: false,
-            gestureHandling: "greedy",
-          });
-          map.addListener("idle", () => {
-            const center = map.getCenter();
-            if (center) onViewportChangeRef.current?.({ center: [center.lng(), center.lat()], zoom: map.getZoom() ?? 0 });
-          });
-          if (analysisLayer) {
-            const data = new google.maps.Data({ map });
-            data.addGeoJson(analysisLayer.geojson as Parameters<google.maps.Data["addGeoJson"]>[0]);
-            data.setStyle({ fillColor: "#4FA8FF", fillOpacity: analysisOpacity, strokeColor: "#4FA8FF", strokeWeight: 2 });
-          }
-          events.slice(0, 160).forEach((event) => {
-            const marker = new google.maps.Marker({
-              map,
-              position: { lat: event.center[1], lng: event.center[0] },
-              title: event.name,
-              icon: {
-                path: google.maps.SymbolPath.CIRCLE,
-                scale: event.alert_level === "red" ? 9 : event.alert_level === "orange" ? 7 : 5,
-                fillColor: eventColor(event),
-                fillOpacity: 0.92,
-                strokeColor: "#ffffff",
-                strokeWeight: 2,
-              },
-            });
-            marker.addListener("click", () => onSelectRef.current({
-              id: event.event_id,
-              title: event.name,
-              subtitle: `${event.event_type} · ${event.country}`,
-              status: "Officially reported",
-              source: event.source,
-              center: event.center,
-              zoom: 7,
-            }));
-          });
-          if (scope === "local" && showDemoLayer) {
-            new google.maps.Data({ map }).addGeoJson({
-              type: "Feature",
-              properties: { status: "demo" },
-              geometry: { type: "Polygon", coordinates: [[[-75.395, 40.612], [-75.35, 40.612], [-75.344, 40.64], [-75.393, 40.642], [-75.395, 40.612]]] },
-            });
-            modelLayer?.geojson.features.forEach((feature) => {
-              const value = feature.properties.value;
-              const marker = new google.maps.Marker({
-                map,
-                position: { lat: feature.geometry.coordinates[1], lng: feature.geometry.coordinates[0] },
-                title: `${feature.properties.name}: ${(value * 100).toFixed(1)}% mean damage ratio (modelled demo)`,
-                icon: {
-              path: google.maps.SymbolPath.CIRCLE,
-                  scale: 8,
-                  fillColor: damageColor(value),
-                  fillOpacity: 0.9,
-                  strokeColor: "#ffffff",
-                  strokeWeight: 1.5,
-                },
-              });
-              marker.addListener("click", () => onSelectRef.current({
-                id: feature.properties.asset_id,
-                title: feature.properties.name,
-                subtitle: `${(value * 100).toFixed(1)}% modelled mean damage · ${feature.properties.occupancy}`,
-                status: "Demo",
-                source: "RiskChain immutable flood-model result",
-                center: feature.geometry.coordinates,
-                zoom: 15,
-              }));
-            });
-          }
-          return;
-        } catch {
-          // A failed optional provider falls through to the open map engine.
-        }
-      }
-
-      const maplibregl = (await import("maplibre-gl")).default;
-      if (!active) return;
-      mapLibre = new maplibregl.Map({
-        container,
-        style: operationsMode
-          ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-          : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-        center: focus ?? (scope === "global" ? [5, 18] : [-75.3705, 40.6259]),
-        zoom: focus ? (focusZoom ?? 12) : scope === "global" ? 1.75 : 12.4,
-        attributionControl: false,
+    let alive = true; let map: import("maplibre-gl").Map | undefined; const host = ref.current;
+    const start = async () => { if (!host) return; const maplibre = (await import("maplibre-gl")).default; if (!alive) return;
+      map = new maplibre.Map({ container:host, style:operationsMode ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json", center:focus ?? (scope === "global" ? [5,18] : [-75.3705,40.6259]), zoom:focus ? focusZoom ?? 12 : scope === "global" ? 1.75 : 12.4, pitch: threeD && scope === "local" ? 52 : 0, bearing: threeD && scope === "local" ? -18 : 0, attributionControl:false });
+      map.addControl(new maplibre.NavigationControl({ showCompass:true }), "bottom-right"); map.addControl(new maplibre.AttributionControl({ compact:true }), "bottom-right");
+      map.on("moveend", () => { if (map) { const c = map.getCenter(); viewportRef.current?.({center:[c.lng,c.lat], zoom:map.getZoom()}); } });
+      map.on("load", async () => { if (!map || !alive) return;
+        if (threeD && scope === "local") try { map.addSource("riskchain-visual-terrain", {type:"raster-dem",url:"https://demotiles.maplibre.org/terrain-tiles/tiles.json",tileSize:256}); map.setTerrain({source:"riskchain-visual-terrain",exaggeration:1.15}); map.addLayer({id:"riskchain-sky",type:"sky",paint:{"sky-type":"atmosphere","sky-atmosphere-sun-intensity":6}} as never); } catch { /* 3D context is optional */ }
+        if (analysisLayer) { map.addSource("analysis-hazard", {type:"geojson",data:analysisLayer.geojson as GeoJSON.FeatureCollection}); map.addLayer({id:"analysis-hazard-fill",type:"fill",source:"analysis-hazard",paint:{"fill-color":"#4FA8FF","fill-opacity":analysisOpacity}}); map.addLayer({id:"analysis-hazard-line",type:"line",source:"analysis-hazard",paint:{"line-color":"#4FA8FF","line-width":2}}); }
+        if (scope === "local" && hazard === "flood" && showDemoLayer) { map.addSource("demo-flood", {type:"geojson",data:{type:"Feature",properties:{},geometry:{type:"Polygon",coordinates:[[[-75.395,40.612],[-75.35,40.612],[-75.344,40.64],[-75.393,40.642],[-75.395,40.612]]]}}}); map.addLayer({id:"demo-flood-fill",type:"fill",source:"demo-flood",paint:{"fill-color":"#1a73e8","fill-opacity":.2}}); map.addLayer({id:"demo-flood-line",type:"line",source:"demo-flood",paint:{"line-color":"#1a73e8","line-width":2,"line-dasharray":[2,2]}}); }
+        if (scope === "global") events.slice(0,160).forEach((e) => { const node=document.createElement("button"); node.className="map-event-marker"; node.style.setProperty("--marker-color",eventColor(e)); node.title=`${e.name} — ${e.alert_level} alert`; node.onclick=()=>selectRef.current({id:e.event_id,title:e.name,subtitle:`${e.event_type} · ${e.country}`,status:"Officially reported",source:e.source,center:e.center,zoom:7}); new maplibre.Marker({element:node}).setLngLat(e.center).addTo(map!); });
+        if (scope === "local" && showDemoLayer) { const node=document.createElement("button"); node.className="map-event-marker local-pin"; node.style.setProperty("--marker-color","#1a73e8"); node.title="Bethlehem flood demonstration"; node.onclick=()=>selectRef.current({id:"bethlehem-demo",title:"Bethlehem flood demonstration",subtitle:"100-year flood scenario · Lehigh Valley",status:"Demo",source:"RiskChain approved demonstration engine",center:[-75.3705,40.6259]}); new maplibre.Marker({element:node}).setLngLat([-75.3705,40.6259]).addTo(map);
+          if (view === "markers") assets.forEach((a) => { const node=document.createElement("button"); node.className="map-model-asset"; node.style.setProperty("--asset-color",color(a.ratio)); node.title=`${a.name}: ${(a.ratio*100).toFixed(1)}% mean damage ratio · ${usd(a.total)} total loss (modelled demo)`; node.onclick=()=>selectRef.current({id:a.id,title:a.name,subtitle:`${(a.ratio*100).toFixed(1)}% modelled mean damage · ${a.occupancy}`,status:"Demo",source:"RiskChain immutable flood-model result",center:a.point,zoom:15}); new maplibre.Marker({element:node}).setLngLat(a.point).addTo(map!); }); }
+        if (!visualResults || view === "markers") return;
+        try { const [{MapboxOverlay},{ColumnLayer},{H3HexagonLayer},{latLngToCell}] = await Promise.all([import("@deck.gl/mapbox"),import("@deck.gl/layers"),import("@deck.gl/geo-layers"),import("h3-js")]); if (!alive || !map) return; let layers:unknown[];
+          if (view === "columns") { const max=Math.max(...assets.map((a)=>value(a,metric)),.0001); layers=[new ColumnLayer<Asset>({id:"riskchain-loss-columns",data:assets,getPosition:(a)=>a.point,getElevation:(a)=>550*value(a,metric)/max,getFillColor:(a)=>rgb(a.ratio),radius:105,diskResolution:16,extruded:true,pickable:true,autoHighlight:true,material:{ambient:.45,diffuse:.6,shininess:28,specularColor:[255,255,255]}})]; }
+          else { const groups=new Map<string,{hexagon:string;count:number;damage:number;total:number;building:number}>(); assets.forEach((a)=>{const key=latLngToCell(a.point[1],a.point[0],resolution); const group=groups.get(key)??{hexagon:key,count:0,damage:0,total:0,building:0}; group.count++; group.damage+=a.ratio; group.total+=a.total; group.building+=a.building; groups.set(key,group);}); const cells=[...groups.values()].map((g)=>({...g,value:metric==="damage"?g.damage/g.count:metric==="building"?g.building:g.total})); const max=Math.max(...cells.map((g)=>g.value),.0001); layers=[new H3HexagonLayer<typeof cells[number]>({id:"riskchain-loss-hexbins",data:cells,getHexagon:(g)=>g.hexagon,getFillColor:(g)=>rgb(g.damage/g.count),getElevation:(g)=>450*g.value/max,extruded:true,pickable:true,autoHighlight:true,material:{ambient:.45,diffuse:.6,shininess:28,specularColor:[255,255,255]}})]; }
+          const overlay=new MapboxOverlay({interleaved:true,layers:layers as never[],getTooltip:({object}:{object?:Asset|{count:number;damage:number;total:number;value:number}})=>!object?null:"id" in object?{html:assetTip(object)}:{html:`<div class="deck-tooltip"><strong>Modelled asset hexbin</strong><span>${object.count} modelled asset${object.count===1?"":"s"}</span><hr/><span>${label(metric)} <b>${shown(object.value,metric)}</b></span><span>Mean damage <b>${(object.damage/object.count*100).toFixed(1)}%</b></span><span>Total loss <b>${usd(object.total)}</b></span><em>Aggregate of demo assets only</em></div>`}}); map.addControl(overlay as unknown as import("maplibre-gl").IControl); } catch { /* marker fallback stays usable */ }
       });
-      mapLibre.addControl(new maplibregl.NavigationControl({ showCompass: true }), "bottom-right");
-      mapLibre.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
-      const reportViewport = () => {
-        if (!mapLibre) return;
-        const center = mapLibre.getCenter();
-        onViewportChangeRef.current?.({ center: [center.lng, center.lat], zoom: mapLibre.getZoom() });
-      };
-      mapLibre.on("moveend", reportViewport);
-      mapLibre.on("load", () => {
-        if (!mapLibre) return;
-        reportViewport();
-        if (analysisLayer) {
-          mapLibre.addSource("analysis-hazard", { type: "geojson", data: analysisLayer.geojson as GeoJSON.FeatureCollection });
-          mapLibre.addLayer({ id: "analysis-hazard-fill", type: "fill", source: "analysis-hazard", paint: { "fill-color": "#4FA8FF", "fill-opacity": analysisOpacity } });
-          mapLibre.addLayer({ id: "analysis-hazard-line", type: "line", source: "analysis-hazard", paint: { "line-color": "#4FA8FF", "line-width": 2 } });
-        }
-        if (scope === "local" && hazard === "flood" && showDemoLayer) {
-          mapLibre.addSource("demo-flood", {
-            type: "geojson",
-            data: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[[-75.395, 40.612], [-75.35, 40.612], [-75.344, 40.64], [-75.393, 40.642], [-75.395, 40.612]]] } },
-          });
-          mapLibre.addLayer({ id: "demo-flood-fill", type: "fill", source: "demo-flood", paint: { "fill-color": "#1a73e8", "fill-opacity": 0.2 } });
-          mapLibre.addLayer({ id: "demo-flood-line", type: "line", source: "demo-flood", paint: { "line-color": "#1a73e8", "line-width": 2, "line-dasharray": [2, 2] } });
-        }
-        const visible = scope === "global" ? events.slice(0, 160) : [];
-        visible.forEach((event) => {
-          const node = document.createElement("button");
-          node.className = "map-event-marker";
-          node.style.setProperty("--marker-color", eventColor(event));
-          node.title = `${event.name} — ${event.alert_level} alert`;
-          node.setAttribute("aria-label", node.title);
-          node.onclick = () => onSelectRef.current({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 7 });
-          new maplibregl.Marker({ element: node }).setLngLat(event.center).addTo(mapLibre!);
-        });
-        if (scope === "local" && showDemoLayer) {
-          const node = document.createElement("button");
-          node.className = "map-event-marker local-pin";
-          node.style.setProperty("--marker-color", "#1a73e8");
-          node.title = "Bethlehem flood demonstration";
-          node.onclick = () => onSelectRef.current({ id: "bethlehem-demo", title: "Bethlehem flood demonstration", subtitle: "100-year flood scenario · Lehigh Valley", status: "Demo", source: "RiskChain approved demonstration engine", center: [-75.3705, 40.6259] });
-          new maplibregl.Marker({ element: node }).setLngLat([-75.3705, 40.6259]).addTo(mapLibre);
-          modelLayer?.geojson.features.forEach((feature) => {
-            const value = feature.properties.value;
-            const assetNode = document.createElement("button");
-            assetNode.className = "map-model-asset";
-            assetNode.style.setProperty("--asset-color", damageColor(value));
-            assetNode.title = `${feature.properties.name}: ${(value * 100).toFixed(1)}% mean damage ratio (modelled demo)`;
-            assetNode.setAttribute("aria-label", assetNode.title);
-            assetNode.onclick = () => onSelectRef.current({
-              id: feature.properties.asset_id,
-              title: feature.properties.name,
-              subtitle: `${(value * 100).toFixed(1)}% modelled mean damage · ${feature.properties.occupancy}`,
-              status: "Demo",
-              source: "RiskChain immutable flood-model result",
-              center: feature.geometry.coordinates,
-              zoom: 15,
-            });
-            new maplibregl.Marker({ element: assetNode }).setLngLat(feature.geometry.coordinates).addTo(mapLibre!);
-          });
-        }
-      });
-    }
-    void start();
-    return () => {
-      active = false;
-      mapLibre?.remove();
-      container?.replaceChildren();
-    };
-  }, [analysisLayer, analysisOpacity, events, focus, focusZoom, hazard, modelLayer, operationsMode, scope, showDemoLayer]);
-
-  return <div ref={ref} className="risk-map" role="application" aria-label="Interactive catastrophe risk map" />;
+    }; void start(); return () => { alive=false; map?.remove(); host?.replaceChildren(); };
+  }, [analysisLayer,analysisOpacity,assets,events,focus,focusZoom,hazard,metric,operationsMode,resolution,scope,showDemoLayer,threeD,view,visualResults]);
+  return <><div ref={ref} className="risk-map" role="application" aria-label="Interactive catastrophe risk map" />{scope === "local" && <div className="map-visual-controls" aria-label="Map visualisation controls"><button className={threeD?"active":""} onClick={()=>setThreeD(!threeD)} aria-pressed={threeD}>3D context</button>{visualResults && <><div className="result-view-toggle" role="group" aria-label="Modelled result view">{(["markers","columns","hexbins"] as View[]).map((next)=><button key={next} className={view===next?"active":""} onClick={()=>setView(next)} aria-pressed={view===next}>{next==="markers"?"Markers":next==="columns"?"Columns":"Hexbins"}</button>)}</div>{view!=="markers" && <div className="result-view-options"><label>Metric<select value={metric} onChange={(e)=>setMetric(e.target.value as Metric)}><option value="damage">Mean damage ratio</option><option value="building">Building loss</option><option value="total">Total loss</option></select></label>{view==="hexbins" && <label>H3 resolution<select value={resolution} onChange={(e)=>setResolution(Number(e.target.value))}><option value={8}>8 · broader</option><option value={9}>9 · default</option><option value={10}>10 · finer</option></select></label>}<div className="result-map-legend"><span>Damage ratio</span><i/><small>low</small><small>high</small></div><p>Height is relative {label(metric).toLowerCase()}. Empty areas have no modelled values.</p></div>}</>}{threeD && <small>Visual terrain only — not a hazard surface.</small>}</div>}</>;
 }
-
 export type { MapViewport, Selection as MapSelection };
