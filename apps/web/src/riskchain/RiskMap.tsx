@@ -41,10 +41,16 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
     return modelLayer.geojson.features.flatMap((f) => { const a = byId.get(f.properties.asset_id); return a ? [{ id:a.asset_id, name:f.properties.name, occupancy:f.properties.occupancy, point:f.geometry.coordinates, depth:a.intensity, ratio:a.mean_damage_ratio, building:a.building_loss_usd, contents:a.contents_loss_usd, bi:a.business_interruption_loss_usd, total:a.ground_up_loss_usd, extrapolated:Boolean(a.extrapolated || f.properties.extrapolated) }] : []; });
   }, [modelLayer, modelRun]);
   const visualResults = scope === "local" && assets.length > 0;
-  useEffect(() => { selectRef.current = onSelect; }, [onSelect]); useEffect(() => { viewportRef.current = onViewportChange; }, [onViewportChange]); useEffect(() => { if (scope !== "local") setThreeD(false); }, [scope]);
+  useEffect(() => { selectRef.current = onSelect; }, [onSelect]); useEffect(() => { viewportRef.current = onViewportChange; }, [onViewportChange]); useEffect(() => { if (scope !== "local") {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- leaving a local 3D map must reset its visual-only camera context.
+    setThreeD(false);
+  } }, [scope]);
   // Surface the 3D result view once when a completed model run first has assets.
   // Afterwards, users remain fully in control of the selected view.
-  useEffect(() => { if (visualResults && !revealed.current) { revealed.current = true; setView("columns"); setThreeD(true); } if (!visualResults) revealed.current = false; }, [visualResults]);
+  useEffect(() => { if (visualResults && !revealed.current) { revealed.current = true;
+    setView("columns");
+    setThreeD(true);
+  } if (!visualResults) revealed.current = false; }, [visualResults]);
   useEffect(() => {
     let alive = true; let map: import("maplibre-gl").Map | undefined; const host = ref.current;
     const start = async () => { if (!host) return; const maplibre = (await import("maplibre-gl")).default; if (!alive) return;

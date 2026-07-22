@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-display" });
+const display = Archivo({ subsets: ["latin"], weight: ["600", "700", "800"], variable: "--font-display" });
 const mono = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-mono" });
 
 export const metadata: Metadata = {

@@ -17,6 +17,7 @@ import { RiskMap, type MapSelection, type MapViewport } from "./RiskMap";
 import { ModelAnalytics } from "./ModelAnalytics";
 import { ModelBuilder } from "./ModelBuilder";
 import { AnalysisResults } from "./AnalysisResults";
+import { EventTape } from "./EventTape";
 import { GeoAgentPanel, type GeoAgentLayerState } from "./GeoAgentPanel";
 
 type View = "explore" | "model" | "live" | "learn" | "research";
@@ -482,6 +483,8 @@ export function RiskChainWorkspace() {
         </div>
 
         <button className="workspace-about" onClick={() => setPanel("roadmap")}>About & roadmap</button>
+
+        {(view === "explore" || view === "live") && <EventTape events={geoLayers.events ? visibleEvents : []} onSelect={onSelect} />}
 
         {view === "explore" && <section className="floating-card intro-card">
           <StatusBadge tone="live">Map-first workspace</StatusBadge>
