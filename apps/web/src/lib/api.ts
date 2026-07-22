@@ -96,6 +96,7 @@ export const api = {
   liveSummary: () => request<RegionSummary>("/live/summary"),
   liveEvents: () => request<LiveEventsResponse>("/live/events"),
   globalEvents: () => request<GlobalEventsResponse>("/live/global-events"),
+  refreshGlobalEvents: () => request<GlobalEventsResponse>("/live/global-events?force=true"),
   globalOutlook: (horizonMinutes: number) => request<GlobalOutlookResponse>(`/live/global-outlook?horizon_minutes=${Math.max(0, Math.min(1440, Math.round(horizonMinutes)))}`),
   futureOutlook: (targetAt: string) => request<FutureOutlookResponse>(`/live/future-outlook?target_at=${encodeURIComponent(targetAt)}`),
   modelWeatherOutlook: (targetAt: string, center: [number, number], locationName: string) => request<ModelWeatherOutlookResponse>(

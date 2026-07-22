@@ -9,14 +9,15 @@ function value(value: number | null | undefined, kind: "number" | "money" = "num
 }
 
 export function AnalysisResults({ result, onDownload }: { result: AnalysisRunResult; onDownload: () => void }) {
+  const confidenceBand = result.confidence.overall.toLowerCase();
+  const confidenceTone = confidenceBand.includes("low") ? "low" : confidenceBand.includes("high") ? "high" : "medium";
   return <div className="screening-results">
     <div className="screening-banner"><ShieldCheck size={20} /><div><strong>Exposure screening</strong><p>No loss was calculated because compatible asset-level hazard intensity is unavailable.</p></div></div>
     <div className="result-grid"><div><span>Structures in footprint</span><strong>{value(result.totals.structures)}</strong></div><div><span>Population represented</span><strong>{value(result.totals.population)}</strong></div><div><span>Structure value</span><strong>{value(result.totals.structure_value_usd, "money")}</strong></div><div><span>Contents value</span><strong>{value(result.totals.contents_value_usd, "money")}</strong></div></div>
     <section><h3>Component status</h3><div className="component-status">{Object.entries(result.component_status).map(([name, status]) => <div key={name}>{status === "loaded" ? <CheckCircle2 size={15} /> : <XCircle size={15} />}<span><strong>{name}</strong>{status}</span></div>)}</div></section>
-    <section className="confidence-card"><ShieldCheck size={20} /><div><strong>{result.confidence.overall} confidence</strong><p>{result.confidence.explanation}</p></div></section>
+    <section className={`confidence-card ${confidenceTone}`}>{confidenceTone === "low" ? <AlertTriangle size={20} /> : <ShieldCheck size={20} />}<div><strong>{result.confidence.overall} confidence</strong><p>{result.confidence.explanation}</p>{result.confidence.ways_to_improve.length > 0 && <ul>{result.confidence.ways_to_improve.map((item) => <li key={item}>{item}</li>)}</ul>}</div></section>
     <section><h3>Audit and sources</h3><div className="source-records">{((result.manifest.sources as Array<Record<string, string>>) ?? []).map((source, index) => <article key={`${source.dataset}-${index}`}><Database size={15} /><span><strong>{source.dataset}</strong>{source.provider} · {source.status}<small>{source.note}</small></span></article>)}</div></section>
     <section><h3>Important limitations</h3><ul className="limitations-list">{result.limitations.map((item) => <li key={item}><AlertTriangle size={14} />{item}</li>)}</ul></section>
     <button className="primary manifest-button" type="button" onClick={onDownload}><Download size={16} /> Download JSON manifest</button>
   </div>;
 }
-

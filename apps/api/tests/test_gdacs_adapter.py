@@ -1,6 +1,9 @@
 from datetime import timezone
 
-from app.adapters.gdacs import _map_feature
+import pytest
+
+from app.adapters.gdacs import _map_feature, fetch_global_events
+from app.core.config import Settings
 
 
 def test_gdacs_feature_normalizes_operational_metadata():
@@ -31,3 +34,31 @@ def test_gdacs_feature_normalizes_operational_metadata():
     assert event.center == (12.5, -7.1)
     assert event.modified_at.tzinfo == timezone.utc
     assert str(event.report_url).startswith("https://")
+
+
+@pytest.mark.asyncio
+async def test_gdacs_adapter_pages_and_deduplicates(monkeypatch):
+    async def fake_get(_url, *, params):
+        page = params["pagenumber"]
+        if page > 2:
+            return {"features": []}
+        event_id = 100 + page
+        duplicate = 101 if page == 2 else event_id
+        return {
+            "features": [{
+                "geometry": {"type": "Point", "coordinates": [page, page]},
+                "properties": {
+                    "eventtype": "EQ", "eventid": duplicate, "name": f"Event {duplicate}",
+                    "country": "Test", "alertlevel": "Green", "alertscore": 1,
+                    "fromdate": "2026-07-16T12:00:00Z", "datemodified": "2026-07-16T12:30:00Z",
+                    "url": {"report": f"https://www.gdacs.org/report.aspx?eventid={duplicate}"},
+                },
+            }]
+        }
+
+    monkeypatch.setattr("app.adapters.gdacs.safe_get_json", fake_get)
+    monkeypatch.setattr("app.adapters.gdacs._cache", None)
+    response = await fetch_global_events(Settings(), force=True)
+    assert len(response.items) == 1
+    assert response.items[0].event_id == "EQ-101"
+    assert "5 GDACS page(s)" in response.note

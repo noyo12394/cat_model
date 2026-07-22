@@ -47,8 +47,11 @@ class RegionSummary(BaseModel):
 
 
 @router.get("/global-events", response_model=GlobalEventsResponse)
-async def get_global_events(settings: Settings = Depends(settings_dep)) -> GlobalEventsResponse:
-    response = await fetch_global_events(settings)
+async def get_global_events(
+    force: bool = Query(default=False, description="Bypass the five-minute server cache for an explicit user refresh."),
+    settings: Settings = Depends(settings_dep),
+) -> GlobalEventsResponse:
+    response = await fetch_global_events(settings, force=force)
     events = response.items
     levels = [event.alert_level for event in events]
     latest = max((event.modified_at for event in events), default=None)
@@ -65,6 +68,8 @@ async def get_global_events(settings: Settings = Depends(settings_dep)) -> Globa
         source_updated_at=latest,
         data_status=response.status,
         stale=response.status == DataStatus.STALE or (age_seconds is not None and age_seconds > 86400),
+        result_cap=500,
+        possibly_truncated=len(events) >= 500,
         error=response.note if response.status == DataStatus.UNAVAILABLE else None,
     )
 

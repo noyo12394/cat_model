@@ -46,6 +46,8 @@ class GlobalEventsResponse(BaseModel):
     standards: list[str] = Field(default_factory=lambda: ["GeoJSON", "GDACS MHEWS API"])
     data_status: DataStatus
     stale: bool = False
+    result_cap: int = 500
+    possibly_truncated: bool = False
     notice: str = (
         "GDACS impact estimates are indicative. Confirm critical decisions with national authorities "
         "and additional authoritative sources."

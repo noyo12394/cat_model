@@ -4,7 +4,7 @@ import * as React from "react";
 import { Info, RotateCcw } from "lucide-react";
 import type { GlobalEvent } from "@/lib/types";
 
-type Props = { event: GlobalEvent };
+type Props = { event: GlobalEvent; compact?: boolean };
 
 function formatUtc(value: string) {
   const date = new Date(value);
@@ -26,7 +26,7 @@ function alertColor(level: string) {
   return "#35C77B";
 }
 
-export function EventGenome({ event }: Props) {
+export function EventGenome({ event, compact = false }: Props) {
   const [yaw, setYaw] = React.useState(28);
   const [pitch, setPitch] = React.useState(-18);
   const drag = React.useRef<{ x: number; y: number } | null>(null);
@@ -84,7 +84,7 @@ export function EventGenome({ event }: Props) {
 
   function stopDrag() { drag.current = null; }
 
-  return <section className="event-genome" aria-label={`Event signature for ${event.name}`}>
+  return <section className={`event-genome ${compact ? "compact" : ""}`} aria-label={`Event signature for ${event.name}`}>
     <div className="genome-stage">
       <svg viewBox="0 0 360 286" role="img" aria-label="Rotatable three-dimensional double-helix visual encoding of published event metadata" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={stopDrag} onPointerCancel={stopDrag}>
         <defs>
@@ -107,11 +107,11 @@ export function EventGenome({ event }: Props) {
           </g>;
         })}
       </svg>
-      <div className="genome-controls"><label>Orbit<input aria-label="Rotate event signature" type="range" min="-180" max="180" value={yaw} onChange={(event) => setYaw(Number(event.target.value))} /></label><label>Tilt<input aria-label="Tilt event signature" type="range" min="-58" max="42" value={pitch} onChange={(event) => setPitch(Number(event.target.value))} /></label><button type="button" onClick={() => { setYaw(28); setPitch(-18); }} aria-label="Reset signature orientation"><RotateCcw size={15} /></button></div>
+      {!compact && <div className="genome-controls"><label>Orbit<input aria-label="Rotate event signature" type="range" min="-180" max="180" value={yaw} onChange={(event) => setYaw(Number(event.target.value))} /></label><label>Tilt<input aria-label="Tilt event signature" type="range" min="-58" max="42" value={pitch} onChange={(event) => setPitch(Number(event.target.value))} /></label><button type="button" onClick={() => { setYaw(28); setPitch(-18); }} aria-label="Reset signature orientation"><RotateCcw size={15} /></button></div>}
     </div>
     <p className="genome-orbit-tip">Drag the helix to orbit it in 3D. Depth changes the size and opacity of each published metadata locus.</p>
-    <div className="genome-key"><span><i style={{ background: hue }} /> Hazard class</span><span><i style={{ background: alert }} /> Official alert level</span><span><i className="genome-line" /> Metadata locus</span></div>
+    {!compact && <><div className="genome-key"><span><i style={{ background: hue }} /> Hazard class</span><span><i style={{ background: alert }} /> Official alert level</span><span><i className="genome-line" /> Metadata locus</span></div>
     <div className="genome-loci">{loci.map(([label, value], index) => <div key={label}><span>{String(index + 1).padStart(2, "0")}</span><dl><dt>{label}</dt><dd>{value}</dd></dl></div>)}</div>
-    <p className="genome-limit"><Info size={15} /> This is a visual index of published event metadata. It is not a biological model, physical hazard measurement, forecast, probability, or risk score.</p>
+    <p className="genome-limit"><Info size={15} /> This is a visual index of published event metadata. It is not a biological model, physical hazard measurement, forecast, probability, or risk score.</p></>}
   </section>;
 }

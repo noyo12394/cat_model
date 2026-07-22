@@ -334,6 +334,8 @@ export interface GlobalEventsResponse {
   standards: string[];
   data_status: DataStatus;
   stale: boolean;
+  result_cap: number;
+  possibly_truncated: boolean;
   notice: string;
   error?: string | null;
 }
