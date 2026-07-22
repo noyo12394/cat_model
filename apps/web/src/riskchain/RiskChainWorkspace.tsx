@@ -19,6 +19,7 @@ import { ModelBuilder } from "./ModelBuilder";
 import { AnalysisResults } from "./AnalysisResults";
 import { EventTape } from "./EventTape";
 import { GeoAgentPanel, type GeoAgentLayerState } from "./GeoAgentPanel";
+import { WorkspaceMission } from "./WorkspaceMission";
 
 type View = "explore" | "model" | "live" | "learn" | "research";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account";
@@ -369,6 +370,12 @@ export function RiskChainWorkspace() {
     window.setTimeout(() => void executeDemoRun(), 0);
   }
 
+  function focusPlaceSearch() {
+    setLocationIntent(view === "model");
+    setNotice(null);
+    window.setTimeout(() => document.getElementById("global-place-search")?.focus(), 0);
+  }
+
   async function openLesson(id: string) {
     setLoading(true);
     try { setLesson(await api.learnLesson(id)); } catch { setNotice("Lesson detail is temporarily unavailable."); }
@@ -507,6 +514,18 @@ export function RiskChainWorkspace() {
           <div className="trust-row"><span><ShieldCheck size={15} /> Sources visible</span><span><CheckCircle2 size={15} /> Ranges, not false precision</span></div>
         </section>}
 
+        {view === "explore" && !selection && <WorkspaceMission
+          mode="explore"
+          eventCount={visibleEvents.length}
+          eventStatus={eventsResponse?.data_status}
+          hasDemoResult={Boolean(run || modelLayer)}
+          hasAnalysisResult={Boolean(analysisRun)}
+          onFocusSearch={focusPlaceSearch}
+          onOpenLive={() => chooseView("live")}
+          onRunDemo={startGuidedDemo}
+          onOpenResults={() => setPanel("results")}
+        />}
+
         {view === "model" && <ModelBuilder
           location={analysisLocation}
           onRequestLocation={() => {
@@ -517,6 +536,19 @@ export function RiskChainWorkspace() {
           onDemo={async () => { applyBethlehemDemo(); await executeDemoRun(); }}
           onResult={(result) => { setAnalysisRun(result); setHazard(result.hazard_type === "hurricane" ? "cyclone" : result.hazard_type); setRun(null); setProbabilistic(null); setModelLayer(null); setPanel("results"); }}
           onNotice={(message) => setNotice(message)}
+        />}
+
+        {view === "model" && <WorkspaceMission
+          mode="model"
+          placeName={analysisLocation?.name}
+          eventCount={visibleEvents.length}
+          eventStatus={eventsResponse?.data_status}
+          hasDemoResult={Boolean(run || modelLayer)}
+          hasAnalysisResult={Boolean(analysisRun)}
+          onFocusSearch={focusPlaceSearch}
+          onOpenLive={() => chooseView("live")}
+          onRunDemo={startGuidedDemo}
+          onOpenResults={() => setPanel("results")}
         />}
 
         {view === "live" && <section className="floating-card live-card">
