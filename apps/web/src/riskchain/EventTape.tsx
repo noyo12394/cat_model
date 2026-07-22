@@ -19,9 +19,11 @@ export function EventTape({ events, onSelect }: Props) {
     return <div className="event-tape event-tape-empty" aria-label="Live event tape"><span>Live event tape</span><p>No current events on tape.</p></div>;
   }
 
-  // Rendering the same source-backed items twice lets the physical tape loop
-  // continuously; both copies always select the original event record.
-  const tapeEvents = [...events, ...events];
+  // The tape is an ambient recency signal rather than a catalog. Keep the full
+  // official response on the map and in the event list, but bound this moving
+  // strip so a large feed does not create hundreds of focusable controls.
+  const tapeSource = events.slice(0, 80);
+  const tapeEvents = [...tapeSource, ...tapeSource];
 
   return <section className="event-tape" aria-label="Live GDACS event tape">
     <span className="event-tape-label">Live event tape</span>
@@ -30,12 +32,15 @@ export function EventTape({ events, onSelect }: Props) {
         {tapeEvents.map((event, index) => {
           const tone = alertTone(event);
           const eventLabel = `${event.name} · ${event.alert_level} alert`;
+          const duplicate = index >= tapeSource.length;
           return <button
             className={`tape-spike ${tone}`}
             key={`${event.event_id}-${index}`}
             type="button"
             title={eventLabel}
             aria-label={`Select ${eventLabel}`}
+            aria-hidden={duplicate || undefined}
+            tabIndex={duplicate ? -1 : 0}
             onClick={() => onSelect({
               id: event.event_id,
               title: event.name,
