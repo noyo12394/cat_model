@@ -11,7 +11,7 @@ import { api, ApiError } from "@/lib/api";
 import type {
   AnalysisLocation, AnalysisRunResult, CatModelRunResult, DataCoverageItem, GlobalEventsResponse,
   LearnLesson, LearnLessonSummary, ResearchSearchResponse, RoadmapResponse,
-  CopilotAnswer, ModelResultLayer, PlaceSearchResult, ProbabilisticResult, VulnerabilityFunction,
+  CopilotAnswer, GlobalEvent, ModelResultLayer, PlaceSearchResult, ProbabilisticResult, VulnerabilityFunction,
 } from "@/lib/types";
 import { RiskMap, type MapSelection, type MapViewport } from "./RiskMap";
 import { ModelAnalytics } from "./ModelAnalytics";
@@ -20,9 +20,10 @@ import { AnalysisResults } from "./AnalysisResults";
 import { EventTape } from "./EventTape";
 import { GeoAgentPanel, type GeoAgentLayerState } from "./GeoAgentPanel";
 import { WorkspaceMission } from "./WorkspaceMission";
+import { EventGenome } from "./EventGenome";
 
 type View = "explore" | "model" | "results" | "live" | "learn" | "research";
-type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account";
+type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account" | "genome";
 
 const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
   { id: "explore", label: "Explore", icon: Globe2 },
@@ -162,6 +163,7 @@ export function RiskChainWorkspace() {
   }, []);
 
   const events = useMemo(() => eventsResponse?.events ?? [], [eventsResponse]);
+  const selectedOfficialEvent = useMemo<GlobalEvent | null>(() => selection?.status === "Officially reported" ? events.find((event) => event.event_id === selection.id) ?? null : null, [events, selection]);
   const visibleEvents = useMemo(() => {
     let filtered = currentOnly ? events.filter((event) => event.is_current) : events;
     if (hazard === "flood") filtered = filtered.filter((event) => /^(fl|flood)$/i.test(event.event_type));
@@ -199,6 +201,14 @@ export function RiskChainWorkspace() {
     if (event) setHazard(eventHazard(event.event_type));
     setView("model");
     setPanel("none");
+  }
+
+  function openEventGenome() {
+    if (!selectedOfficialEvent) {
+      setNotice("Select an official event first. Event signatures only use source-backed event records.");
+      return;
+    }
+    setPanel("genome");
   }
 
   function applyBethlehemDemo() {
@@ -514,8 +524,8 @@ export function RiskChainWorkspace() {
         {view === "explore" && <section className="floating-card intro-card">
           <StatusBadge tone="live">Map-first workspace</StatusBadge>
           <h1>Understand catastrophe risk, one place at a time.</h1>
-          <p>Explore official events, screen source-backed U.S. flood exposure, or open the labelled Bethlehem sample model.</p>
-          <div className="intro-actions"><button className="primary" onClick={() => chooseView("live")}><Radio size={17} /> See live events</button><button onClick={startGuidedDemo}><FlaskConical size={17} /> Open 3D result demo</button></div>
+          <p>For risk teams and public-sector planners: follow official events, test governed scenarios, and inspect every source, assumption, and limit.</p>
+          <div className="intro-actions"><button className="primary" onClick={() => chooseView("live")}><Radio size={17} /> See live events</button><button onClick={startGuidedDemo}><FlaskConical size={17} /> Explore modelled demo</button></div>
           <p className="intro-helper">Runs the sample model and opens the result map with Markers, Columns, and Hexbins.</p>
           <div className="trust-row"><span><ShieldCheck size={15} /> Sources visible</span><span><CheckCircle2 size={15} /> Ranges, not false precision</span></div>
         </section>}
@@ -598,7 +608,7 @@ export function RiskChainWorkspace() {
 
         {panel === "layers" && <aside className="floating-card compact-panel layers-panel"><div className="card-heading"><div><span className="eyebrow">Visible workspace</span><h2>Map layers</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close map layers"><X size={16} /></button></div><label className="layer-switch"><span><strong>Official event markers</strong><small>GDACS locations; not impact footprints</small></span><input type="checkbox" checked={geoLayers.events} onChange={(event) => setGeoLayers({ ...geoLayers, events: event.target.checked })} /></label><label className="layer-switch"><span><strong>Analysis footprint</strong><small>{analysisRun ? "Published geometry from current run" : "No analysis result on map"}</small></span><input type="checkbox" disabled={!analysisRun} checked={geoLayers.analysis && Boolean(analysisRun)} onChange={(event) => setGeoLayers({ ...geoLayers, analysis: event.target.checked })} /></label><label className="layer-switch"><span><strong>Modelled demo layer</strong><small>{run || modelLayer ? "Labelled sample result" : "Open guided demo to activate"}</small></span><input type="checkbox" disabled={!run && !modelLayer} checked={geoLayers.demo && Boolean(run || modelLayer)} onChange={(event) => setGeoLayers({ ...geoLayers, demo: event.target.checked })} /></label><label className="layer-opacity"><span>Footprint opacity</span><strong className="number-value">{Math.round(geoLayers.analysisOpacity * 100)}%</strong><input type="range" min="10" max="80" step="5" value={Math.round(geoLayers.analysisOpacity * 100)} onChange={(event) => setGeoLayers({ ...geoLayers, analysisOpacity: Number(event.target.value) / 100 })} /></label><div className="layer-filter-title">Event filter</div>{LIVE_FILTERS.map((item) => <button key={item.id} className={`layer-row ${hazard === item.id ? "active" : ""}`} onClick={() => setHazard(item.id)}><i style={{ background: item.color }} /><span><strong>{item.label}</strong><small>Filter official event locations</small></span></button>)}<div className="future-layer-note"><Database size={14} /><span><strong>Future connectors</strong>PostGIS boundaries, Sentinel-2, Overture roads and 3D buildings are not configured in this deployment.</span></div></aside>}
 
-        {selection && (view === "explore" || view === "live") && panel === "none" && <aside className="floating-card selection-card"><button className="card-close" onClick={() => setSelection(null)} aria-label="Close selection"><X size={17} /></button><StatusBadge tone={selection.status === "Demo" ? "demo" : selection.status === "Geocoded location" ? "neutral" : "live"}>{selection.status}</StatusBadge><h2>{selection.title}</h2><p>{selection.subtitle}</p><dl><div><dt>Source</dt><dd>{selection.source}</dd></div><div><dt>Coordinates</dt><dd>{selection.center[1].toFixed(5)}, {selection.center[0].toFixed(5)}</dd></div><div><dt>Interpretation</dt><dd>{selection.status === "Demo" ? "Scenario input; not a current observation" : selection.status === "Geocoded location" ? "Map position only; no hazard or risk has been calculated here" : "Reported event location; not an impact footprint"}</dd></div></dl>{selection.status === "Demo" ? <button className="primary" onClick={() => chooseView("model")}>Open model</button> : <><button className="primary readiness-button" onClick={openModelReadiness}><FlaskConical size={15} /> Check model readiness</button>{selection.status === "Officially reported" && <a className="secondary-link" href={events.find((item) => item.event_id === selection.id)?.report_url} target="_blank" rel="noreferrer">Open official report <ExternalLink size={15} /></a>}</>}</aside>}
+        {selection && (view === "explore" || view === "live") && panel === "none" && <aside className="floating-card selection-card"><button className="card-close" onClick={() => setSelection(null)} aria-label="Close selection"><X size={17} /></button><StatusBadge tone={selection.status === "Demo" ? "demo" : selection.status === "Geocoded location" ? "neutral" : "live"}>{selection.status}</StatusBadge><h2>{selection.title}</h2><p>{selection.subtitle}</p><dl><div><dt>Source</dt><dd>{selection.source}</dd></div><div><dt>Coordinates</dt><dd>{selection.center[1].toFixed(5)}, {selection.center[0].toFixed(5)}</dd></div><div><dt>Interpretation</dt><dd>{selection.status === "Demo" ? "Scenario input; not a current observation" : selection.status === "Geocoded location" ? "Map position only; no hazard or risk has been calculated here" : "Reported event location; not an impact footprint"}</dd></div></dl>{selection.status === "Demo" ? <button className="primary" onClick={() => chooseView("model")}>Open model</button> : <><button className="primary readiness-button" onClick={openModelReadiness}><FlaskConical size={15} /> Check model readiness</button>{selection.status === "Officially reported" && <><button className="secondary-link event-genome-link" type="button" onClick={openEventGenome}><Database size={15} /> Open event signature</button><a className="secondary-link" href={events.find((item) => item.event_id === selection.id)?.report_url} target="_blank" rel="noreferrer">Open official report <ExternalLink size={15} /></a></>}</>}</aside>}
 
         {panel === "sources" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close source coverage" /><aside className="drawer source-drawer"><div className="drawer-head"><div><span className="eyebrow">Data quality</span><h2>Source & coverage</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close source coverage panel"><X size={18} /></button></div><p className="drawer-intro">Every layer states whether it is live, modelled, inferred, demo, or unavailable. Different resolutions are never blended silently.</p><div className="coverage-summary"><span><strong>{coverage.filter((item) => item.availability === "available_live").length}</strong> live</span><span><strong>{coverage.filter((item) => item.availability === "available_demo").length}</strong> demo</span><span><strong>{coverage.filter((item) => item.availability === "unavailable").length}</strong> unavailable</span></div><div className="coverage-list">{coverage.map((item) => <details key={item.layer_id}><summary><StatusBadge tone={item.availability === "available_live" ? "live" : item.availability === "available_demo" ? "demo" : "blocked"}>{item.availability.replaceAll("_", " ")}</StatusBadge><span><strong>{item.label}</strong><small>{item.source}</small></span><ChevronDown size={15} /></summary><dl><div><dt>Use</dt><dd>{item.use_in_run}</dd></div><div><dt>Resolution</dt><dd>{item.geographic_resolution}</dd></div><div><dt>Origin</dt><dd>{item.attribute_origin.replaceAll("_", " ")}</dd></div></dl>{item.limitations[0] && <p>{item.limitations[0]}</p>}</details>)}</div></aside></>}
 
@@ -606,6 +616,8 @@ export function RiskChainWorkspace() {
         {panel === "results" && analysisRun && !run && <aside className="results-drawer analytics-drawer"><div className="drawer-head"><div><StatusBadge tone="live">Source-backed screening</StatusBadge><h2>{analysisRun.title}</h2><p>{analysisRun.geography?.name ?? analysisRun.provider_event_id ?? "Selected event"} · run {analysisRun.run_id.slice(0, 12)}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close analysis results"><X size={18} /></button></div><AnalysisResults result={analysisRun} onDownload={exportAnalysisRun} /></aside>}
 
         {panel === "account" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close account" /><aside className="drawer account-drawer"><div className="drawer-head"><div><span className="eyebrow">User workspace</span><h2>{user ? `Welcome, ${user.name}` : "Sign in to RiskChain"}</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close account"><X size={18} /></button></div>{user ? <div className="account-signed-in"><div className="account-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div><h3>{user.name}</h3><p>{user.email}</p><section><strong>Workspace status</strong><span>Browser-only demonstration profile</span><span>Runs saved on this device only</span><span>No private portfolio data uploaded</span></section><button onClick={signOutDemo}>Sign out</button></div> : <form className="account-form" onSubmit={signInDemo}><p>Create a local demonstration profile to keep recent run references on this device. This is not production authentication and does not create a cloud account.</p><label>Name<input value={accountName} onChange={(event) => setAccountName(event.target.value)} required autoComplete="name" /></label><label>Email<input type="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} required autoComplete="email" /></label><button className="primary" type="submit"><UserRound size={16} /> Continue to demo workspace</button><div className="method-note"><ShieldCheck size={16} /><p>A production release requires an identity provider, server-side sessions, organization roles, tenant isolation and audit logging.</p></div></form>}</aside></>}
+
+        {panel === "genome" && selectedOfficialEvent && <aside className="drawer event-genome-drawer"><div className="drawer-head"><div><span className="eyebrow">Official metadata visualisation</span><h2>Event Genome</h2><p>{selectedOfficialEvent.name} · {selectedOfficialEvent.source}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close event signature"><X size={18} /></button></div><EventGenome event={selectedOfficialEvent} /></aside>}
 
         {panel === "ai" && <GeoAgentPanel onClose={() => setPanel("none")} view={view} scope={scope} hazard={analysisRun?.hazard_type ?? hazard} selection={selection} viewport={mapViewport} visibleEventCount={geoLayers.events ? visibleEvents.length : 0} analysisRun={analysisRun} hasDemoRun={Boolean(run || modelLayer)} layers={geoLayers} onLayersChange={setGeoLayers} question={aiQuestion} onQuestionChange={setAiQuestion} answer={aiAnswer} loading={loading} onSubmit={askCopilot} />}
 
