@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity, AlertTriangle, BookOpen, Bot, CheckCircle2, ChevronDown, Database,
   Download, ExternalLink, FlaskConical, Globe2, GraduationCap, Layers,
@@ -82,6 +82,7 @@ export function RiskChainWorkspace() {
   const [searching, setSearching] = useState(false);
   const [searchInputFocused, setSearchInputFocused] = useState(false);
   const [activePlaceIndex, setActivePlaceIndex] = useState(-1);
+  const suggestionRequest = useRef<AbortController | null>(null);
   const deductible = 100000;
   const limit = 5000000;
   const [researchQuery, setResearchQuery] = useState("validated flood depth-damage functions for commercial masonry buildings");
@@ -116,24 +117,29 @@ export function RiskChainWorkspace() {
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
+    suggestionRequest.current?.abort();
+    suggestionRequest.current = controller;
     const timer = window.setTimeout(() => {
       setSearching(true);
-      void api.suggestPlaces(term)
+      void api.suggestPlaces(term, controller.signal)
         .then((response) => {
-          if (cancelled) return;
+          if (cancelled || controller.signal.aborted) return;
           setPlaceResults(response.results);
           setActivePlaceIndex(-1);
         })
         .catch(() => {
-          if (!cancelled) setPlaceResults([]);
+          if (!cancelled && !controller.signal.aborted) setPlaceResults([]);
         })
         .finally(() => {
-          if (!cancelled) setSearching(false);
+          if (!cancelled && !controller.signal.aborted) setSearching(false);
         });
     }, 350);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      controller.abort();
+      if (suggestionRequest.current === controller) suggestionRequest.current = null;
     };
   }, [query, searchInputFocused]);
 
@@ -224,6 +230,12 @@ export function RiskChainWorkspace() {
     event.preventDefault();
     const normalized = query.trim().toLowerCase();
     if (!normalized) return;
+    // A submitted search has a different, source-backed fallback. Abort the
+    // debounce request first so both providers are not asked for the same
+    // place and the button always reflects the request that will be used.
+    suggestionRequest.current?.abort();
+    suggestionRequest.current = null;
+    setSearchInputFocused(false);
     setPanel("none");
     setPlaceResults([]);
     setActivePlaceIndex(-1);

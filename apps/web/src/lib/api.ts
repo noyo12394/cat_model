@@ -72,7 +72,10 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 30_000):
     const res = await fetch(`${BASE_URL}${path}`, {
       ...init,
       signal: controller.signal,
-      headers: { "Content-Type": "application/json", ...init?.headers },
+      // Do not attach Content-Type to GET requests. Besides being inaccurate,
+      // it turns otherwise simple cross-origin geocoder reads into a CORS
+      // preflight, which makes type-ahead look stalled on a cold connection.
+      headers: { ...(init?.body ? { "Content-Type": "application/json" } : {}), ...init?.headers },
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -103,10 +106,10 @@ export const api = {
   communityPulse: (incidentId = "developing-flood-bethlehem") =>
     request<CommunityPulseResponse>(`/community/pulse?incident_id=${encodeURIComponent(incidentId)}`),
 
-  searchPlaces: (q: string) =>
-    request<{ query: string; results: PlaceSearchResult[] }>(`/places/search?q=${encodeURIComponent(q)}`),
-  suggestPlaces: (q: string) =>
-    request<{ query: string; results: PlaceSearchResult[] }>(`/places/suggest?q=${encodeURIComponent(q)}`),
+  searchPlaces: (q: string, signal?: AbortSignal) =>
+    request<{ query: string; results: PlaceSearchResult[] }>(`/places/search?q=${encodeURIComponent(q)}`, { signal }),
+  suggestPlaces: (q: string, signal?: AbortSignal) =>
+    request<{ query: string; results: PlaceSearchResult[] }>(`/places/suggest?q=${encodeURIComponent(q)}`, { signal }),
   resolvePlace: (place: PlaceSearchResult) => request<PlaceSearchResult>(`/places/resolve?lon=${encodeURIComponent(place.center[0])}&lat=${encodeURIComponent(place.center[1])}&name=${encodeURIComponent(place.name)}&place_id=${encodeURIComponent(place.place_id)}`),
   getPlaceCapsule: (placeId: string) => request<LocationCapsule>(`/places/${placeId}/capsule`),
 
