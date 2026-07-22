@@ -462,7 +462,7 @@ export function RiskChainWorkspace() {
         <RiskMap
           events={geoLayers.events && scope === "global" ? visibleEvents : []}
           scope={scope}
-          operationsMode={operationsMode}
+          operationsMode={operationsMode || view === "model" || view === "live"}
           hazard={hazard}
           focus={selection?.center}
           focusZoom={selection?.zoom}

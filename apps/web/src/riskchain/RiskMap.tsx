@@ -18,10 +18,22 @@ const escape = (v: string) => v.replace(/[&<>'"]/g, (c) => ({ "&":"&amp;", "<":"
 const value = (asset: Asset, metric: Metric) => metric === "damage" ? asset.ratio : metric === "building" ? asset.building : asset.total;
 const label = (metric: Metric) => metric === "damage" ? "Mean damage ratio" : metric === "building" ? "Building loss" : "Total ground-up loss";
 const shown = (v: number, metric: Metric) => metric === "damage" ? `${(v * 100).toFixed(1)}%` : usd(v);
+// Uses satellite imagery only where local detail improves interpretation. If no
+// MapTiler key is configured, retain the existing reliable CARTO fallback.
+const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+const basemapStyle = (dark: boolean, scope: "global" | "local") => {
+  if (MAPTILER_KEY) {
+    const map = scope === "local" ? "hybrid" : dark ? "dataviz-dark" : "dataviz";
+    return `https://api.maptiler.com/maps/${map}/style.json?key=${MAPTILER_KEY}`;
+  }
+  return dark
+    ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+    : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
+};
 const assetTip = (a: Asset) => `<div class="deck-tooltip"><strong>${escape(a.name)}</strong><span>${escape(a.occupancy)}</span><hr/><span>Flood depth <b>${a.depth.toFixed(2)} ft</b></span><span>Mean damage <b>${(a.ratio*100).toFixed(1)}%</b></span><span>Building <b>${usd(a.building)}</b></span><span>Contents <b>${usd(a.contents)}</b></span><span>Business interruption <b>${usd(a.bi)}</b></span><span>Total <b>${usd(a.total)}</b></span>${a.extrapolated ? "<em>Extrapolated result — see audit</em>" : ""}</div>`;
 
 export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, modelRun, analysisLayer, analysisOpacity = .22, showDemoLayer = true, onSelect, onViewportChange }: Props) {
-  const ref = useRef<HTMLDivElement>(null); const selectRef = useRef(onSelect); const viewportRef = useRef(onViewportChange);
+  const ref = useRef<HTMLDivElement>(null); const selectRef = useRef(onSelect); const viewportRef = useRef(onViewportChange); const revealed = useRef(false);
   const [view, setView] = useState<View>("markers"); const [metric, setMetric] = useState<Metric>("total"); const [resolution, setResolution] = useState(9); const [threeD, setThreeD] = useState(false);
   const assets = useMemo<Asset[]>(() => {
     if (!modelLayer || !modelRun) return [];
@@ -30,10 +42,13 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
   }, [modelLayer, modelRun]);
   const visualResults = scope === "local" && assets.length > 0;
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]); useEffect(() => { viewportRef.current = onViewportChange; }, [onViewportChange]); useEffect(() => { if (scope !== "local") setThreeD(false); }, [scope]);
+  // Surface the 3D result view once when a completed model run first has assets.
+  // Afterwards, users remain fully in control of the selected view.
+  useEffect(() => { if (visualResults && !revealed.current) { revealed.current = true; setView("columns"); setThreeD(true); } if (!visualResults) revealed.current = false; }, [visualResults]);
   useEffect(() => {
     let alive = true; let map: import("maplibre-gl").Map | undefined; const host = ref.current;
     const start = async () => { if (!host) return; const maplibre = (await import("maplibre-gl")).default; if (!alive) return;
-      map = new maplibre.Map({ container:host, style:operationsMode ? "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json" : "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json", center:focus ?? (scope === "global" ? [5,18] : [-75.3705,40.6259]), zoom:focus ? focusZoom ?? 12 : scope === "global" ? 1.75 : 12.4, pitch: threeD && scope === "local" ? 52 : 0, bearing: threeD && scope === "local" ? -18 : 0, attributionControl:false });
+      map = new maplibre.Map({ container:host, style:basemapStyle(operationsMode, scope), center:focus ?? (scope === "global" ? [5,18] : [-75.3705,40.6259]), zoom:focus ? focusZoom ?? 12 : scope === "global" ? 1.75 : 12.4, pitch: threeD && scope === "local" ? 52 : 0, bearing: threeD && scope === "local" ? -18 : 0, attributionControl:false });
       map.addControl(new maplibre.NavigationControl({ showCompass:true }), "bottom-right"); map.addControl(new maplibre.AttributionControl({ compact:true }), "bottom-right");
       map.on("moveend", () => { if (map) { const c = map.getCenter(); viewportRef.current?.({center:[c.lng,c.lat], zoom:map.getZoom()}); } });
       map.on("load", async () => { if (!map || !alive) return;
