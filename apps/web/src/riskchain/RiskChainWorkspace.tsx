@@ -2,7 +2,7 @@
 
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, BookOpen, Bot, CheckCircle2, ChevronDown, Database,
+  Activity, AlertTriangle, BarChart3, BookOpen, Bot, CheckCircle2, ChevronDown, Database,
   Download, ExternalLink, FlaskConical, Globe2, GraduationCap, Layers,
   Menu, Moon, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
   UserRound, X,
@@ -21,12 +21,13 @@ import { EventTape } from "./EventTape";
 import { GeoAgentPanel, type GeoAgentLayerState } from "./GeoAgentPanel";
 import { WorkspaceMission } from "./WorkspaceMission";
 
-type View = "explore" | "model" | "live" | "learn" | "research";
+type View = "explore" | "model" | "results" | "live" | "learn" | "research";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account";
 
 const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
   { id: "explore", label: "Explore", icon: Globe2 },
   { id: "model", label: "Model", icon: FlaskConical },
+  { id: "results", label: "Results", icon: BarChart3 },
   { id: "live", label: "Live", icon: Radio },
   { id: "learn", label: "Learn CAT", icon: GraduationCap },
   { id: "research", label: "Research", icon: BookOpen },
@@ -47,6 +48,11 @@ type WorkspaceUser = { name: string; email: string };
 function dateTime(value?: string | null) {
   if (!value) return "Not reported";
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(value)) + " UTC";
+}
+
+function dollars(value?: number | null) {
+  if (value == null) return "Not available";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: value >= 1_000_000 ? "compact" : "standard", maximumFractionDigits: 0 }).format(value);
 }
 
 function StatusBadge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "live" | "demo" | "warning" | "neutral" | "blocked" | "modelled" | "inferred" | "severe" }) {
@@ -427,7 +433,7 @@ export function RiskChainWorkspace() {
   }
 
   return (
-    <main className={`riskchain-app ${(operationsMode || view === "model" || view === "live") ? "operations terminal" : "light"}`}>
+    <main className={`riskchain-app ${(operationsMode || view === "model" || view === "results" || view === "live") ? "operations terminal" : "light"}`}>
       <a href="#workspace" className="skip-link">Skip to map workspace</a>
       <header className="topbar">
         <button className="icon-button mobile-menu" onClick={() => setMobileNav((value) => !value)} aria-label={mobileNav ? "Close navigation" : "Open navigation"} aria-expanded={mobileNav} aria-controls="primary-navigation"><Menu size={20} /></button>
@@ -548,8 +554,26 @@ export function RiskChainWorkspace() {
           onFocusSearch={focusPlaceSearch}
           onOpenLive={() => chooseView("live")}
           onRunDemo={startGuidedDemo}
-          onOpenResults={() => setPanel("results")}
+          onOpenResults={() => { setView("results"); setPanel("results"); }}
         />}
+
+        {view === "results" && <section className="floating-card results-home-card">
+          <div className="card-heading"><div><span className="eyebrow">Analysis workspace</span><h2>{run ? "Latest model result" : analysisRun ? "Latest exposure screening" : "No result open"}</h2></div>{run ? <StatusBadge tone="demo">Modelled demo</StatusBadge> : analysisRun ? <StatusBadge tone="live">Source-backed</StatusBadge> : <StatusBadge>Awaiting run</StatusBadge>}</div>
+          {run ? <>
+            <p className="results-home-lead">Review the loss range, assumptions, vulnerability functions, and model audit together—before using this result in a decision.</p>
+            <div className="results-home-grid"><div><span>Median loss</span><strong className="number-value">{dollars(run.ground_up_distribution.p50_usd)}</strong></div><div><span>Range</span><strong className="number-value">{dollars(run.ground_up_distribution.range_low_usd)}–{dollars(run.ground_up_distribution.range_high_usd)}</strong></div><div><span>Modelled assets</span><strong className="number-value">{run.asset_count}</strong></div></div>
+            <div className="results-home-actions"><button className="primary" onClick={() => setPanel("results")}><BarChart3 size={16} /> Open analysis</button><button onClick={() => chooseView("model")}><FlaskConical size={16} /> Change scenario</button></div>
+            <p className="results-home-note"><ShieldCheck size={15} /> Demonstration values are modelled inputs, not observations, claims, or a property valuation.</p>
+          </> : analysisRun ? <>
+            <p className="results-home-lead">This run returned exposure screening because the approved engine did not have compatible asset-level hazard intensity for a loss calculation.</p>
+            <div className="results-home-grid"><div><span>Structures</span><strong className="number-value">{analysisRun.totals.structures?.toLocaleString() ?? "Not available"}</strong></div><div><span>Population</span><strong className="number-value">{analysisRun.totals.population?.toLocaleString() ?? "Not available"}</strong></div><div><span>Confidence</span><strong>{analysisRun.confidence.overall}</strong></div></div>
+            <div className="results-home-actions"><button className="primary" onClick={() => setPanel("results")}><ShieldCheck size={16} /> Open audit</button><button onClick={() => chooseView("model")}><FlaskConical size={16} /> Change scenario</button></div>
+          </> : <>
+            <p className="results-home-lead">A result will appear here only after you run a connected model or approved exposure screen. RiskChain does not create placeholder loss numbers.</p>
+            <div className="results-empty-path"><span>01 · Select a place</span><span>02 · Set a scenario</span><span>03 · Run and inspect</span></div>
+            <div className="results-home-actions"><button className="primary" onClick={() => chooseView("model")}><FlaskConical size={16} /> Build a scenario</button><button onClick={startGuidedDemo}><ShieldCheck size={16} /> Open demo result</button></div>
+          </>}
+        </section>}
 
         {view === "live" && <section className="floating-card live-card">
           <div className="card-heading"><div><span className="eyebrow">Official event picture</span><h2>Major disasters now</h2></div><div className="live-head-actions"><StatusBadge tone={eventsResponse?.data_status === "live" ? "live" : "warning"}>{eventsResponse?.data_status ?? "loading"}</StatusBadge><button className="icon-button" onClick={() => void refreshEvents()} aria-label="Refresh official events"><RefreshCw size={15} /></button></div></div>
@@ -574,7 +598,7 @@ export function RiskChainWorkspace() {
 
         {panel === "layers" && <aside className="floating-card compact-panel layers-panel"><div className="card-heading"><div><span className="eyebrow">Visible workspace</span><h2>Map layers</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close map layers"><X size={16} /></button></div><label className="layer-switch"><span><strong>Official event markers</strong><small>GDACS locations; not impact footprints</small></span><input type="checkbox" checked={geoLayers.events} onChange={(event) => setGeoLayers({ ...geoLayers, events: event.target.checked })} /></label><label className="layer-switch"><span><strong>Analysis footprint</strong><small>{analysisRun ? "Published geometry from current run" : "No analysis result on map"}</small></span><input type="checkbox" disabled={!analysisRun} checked={geoLayers.analysis && Boolean(analysisRun)} onChange={(event) => setGeoLayers({ ...geoLayers, analysis: event.target.checked })} /></label><label className="layer-switch"><span><strong>Modelled demo layer</strong><small>{run || modelLayer ? "Labelled sample result" : "Open guided demo to activate"}</small></span><input type="checkbox" disabled={!run && !modelLayer} checked={geoLayers.demo && Boolean(run || modelLayer)} onChange={(event) => setGeoLayers({ ...geoLayers, demo: event.target.checked })} /></label><label className="layer-opacity"><span>Footprint opacity</span><strong className="number-value">{Math.round(geoLayers.analysisOpacity * 100)}%</strong><input type="range" min="10" max="80" step="5" value={Math.round(geoLayers.analysisOpacity * 100)} onChange={(event) => setGeoLayers({ ...geoLayers, analysisOpacity: Number(event.target.value) / 100 })} /></label><div className="layer-filter-title">Event filter</div>{LIVE_FILTERS.map((item) => <button key={item.id} className={`layer-row ${hazard === item.id ? "active" : ""}`} onClick={() => setHazard(item.id)}><i style={{ background: item.color }} /><span><strong>{item.label}</strong><small>Filter official event locations</small></span></button>)}<div className="future-layer-note"><Database size={14} /><span><strong>Future connectors</strong>PostGIS boundaries, Sentinel-2, Overture roads and 3D buildings are not configured in this deployment.</span></div></aside>}
 
-        {selection && view !== "model" && panel === "none" && <aside className="floating-card selection-card"><button className="card-close" onClick={() => setSelection(null)} aria-label="Close selection"><X size={17} /></button><StatusBadge tone={selection.status === "Demo" ? "demo" : selection.status === "Geocoded location" ? "neutral" : "live"}>{selection.status}</StatusBadge><h2>{selection.title}</h2><p>{selection.subtitle}</p><dl><div><dt>Source</dt><dd>{selection.source}</dd></div><div><dt>Coordinates</dt><dd>{selection.center[1].toFixed(5)}, {selection.center[0].toFixed(5)}</dd></div><div><dt>Interpretation</dt><dd>{selection.status === "Demo" ? "Scenario input; not a current observation" : selection.status === "Geocoded location" ? "Map position only; no hazard or risk has been calculated here" : "Reported event location; not an impact footprint"}</dd></div></dl>{selection.status === "Demo" ? <button className="primary" onClick={() => chooseView("model")}>Open model</button> : <><button className="primary readiness-button" onClick={openModelReadiness}><FlaskConical size={15} /> Check model readiness</button>{selection.status === "Officially reported" && <a className="secondary-link" href={events.find((item) => item.event_id === selection.id)?.report_url} target="_blank" rel="noreferrer">Open official report <ExternalLink size={15} /></a>}</>}</aside>}
+        {selection && (view === "explore" || view === "live") && panel === "none" && <aside className="floating-card selection-card"><button className="card-close" onClick={() => setSelection(null)} aria-label="Close selection"><X size={17} /></button><StatusBadge tone={selection.status === "Demo" ? "demo" : selection.status === "Geocoded location" ? "neutral" : "live"}>{selection.status}</StatusBadge><h2>{selection.title}</h2><p>{selection.subtitle}</p><dl><div><dt>Source</dt><dd>{selection.source}</dd></div><div><dt>Coordinates</dt><dd>{selection.center[1].toFixed(5)}, {selection.center[0].toFixed(5)}</dd></div><div><dt>Interpretation</dt><dd>{selection.status === "Demo" ? "Scenario input; not a current observation" : selection.status === "Geocoded location" ? "Map position only; no hazard or risk has been calculated here" : "Reported event location; not an impact footprint"}</dd></div></dl>{selection.status === "Demo" ? <button className="primary" onClick={() => chooseView("model")}>Open model</button> : <><button className="primary readiness-button" onClick={openModelReadiness}><FlaskConical size={15} /> Check model readiness</button>{selection.status === "Officially reported" && <a className="secondary-link" href={events.find((item) => item.event_id === selection.id)?.report_url} target="_blank" rel="noreferrer">Open official report <ExternalLink size={15} /></a>}</>}</aside>}
 
         {panel === "sources" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close source coverage" /><aside className="drawer source-drawer"><div className="drawer-head"><div><span className="eyebrow">Data quality</span><h2>Source & coverage</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close source coverage panel"><X size={18} /></button></div><p className="drawer-intro">Every layer states whether it is live, modelled, inferred, demo, or unavailable. Different resolutions are never blended silently.</p><div className="coverage-summary"><span><strong>{coverage.filter((item) => item.availability === "available_live").length}</strong> live</span><span><strong>{coverage.filter((item) => item.availability === "available_demo").length}</strong> demo</span><span><strong>{coverage.filter((item) => item.availability === "unavailable").length}</strong> unavailable</span></div><div className="coverage-list">{coverage.map((item) => <details key={item.layer_id}><summary><StatusBadge tone={item.availability === "available_live" ? "live" : item.availability === "available_demo" ? "demo" : "blocked"}>{item.availability.replaceAll("_", " ")}</StatusBadge><span><strong>{item.label}</strong><small>{item.source}</small></span><ChevronDown size={15} /></summary><dl><div><dt>Use</dt><dd>{item.use_in_run}</dd></div><div><dt>Resolution</dt><dd>{item.geographic_resolution}</dd></div><div><dt>Origin</dt><dd>{item.attribute_origin.replaceAll("_", " ")}</dd></div></dl>{item.limitations[0] && <p>{item.limitations[0]}</p>}</details>)}</div></aside></>}
 
