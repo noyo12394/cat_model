@@ -486,8 +486,9 @@ export function RiskChainWorkspace() {
         {view === "explore" && <section className="floating-card intro-card">
           <StatusBadge tone="live">Map-first workspace</StatusBadge>
           <h1>Understand catastrophe risk, one place at a time.</h1>
-          <p>Explore official events, screen source-backed U.S. flood exposure, or open a separate labelled sample model.</p>
-          <div className="intro-actions"><button className="primary" onClick={() => chooseView("live")}><Radio size={17} /> See live events</button><button onClick={startGuidedDemo}><FlaskConical size={17} /> Run a guided demo</button></div>
+          <p>Explore official events, screen source-backed U.S. flood exposure, or open the labelled Bethlehem sample model.</p>
+          <div className="intro-actions"><button className="primary" onClick={() => chooseView("live")}><Radio size={17} /> See live events</button><button onClick={startGuidedDemo}><FlaskConical size={17} /> Open 3D result demo</button></div>
+          <p className="intro-helper">Runs the sample model and opens the result map with Markers, Columns, and Hexbins.</p>
           <div className="trust-row"><span><ShieldCheck size={15} /> Sources visible</span><span><CheckCircle2 size={15} /> Ranges, not false precision</span></div>
         </section>}
 
