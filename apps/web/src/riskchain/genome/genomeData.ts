@@ -31,6 +31,19 @@ export type HistoricalGenomeEvent = {
   summary: string;
 };
 
+export type ArchiveSource = {
+  id: string;
+  name: string;
+  provider: string;
+  hazardScope: string;
+  coverage: string;
+  access: string;
+  updateCadence: string;
+  integration: "search" | "external";
+  limitation: string;
+  url: string;
+};
+
 // These traits are deliberately a categorical metadata ontology. They are not
 // intensity measures, physical hazard parameters, damage ratios, likelihoods,
 // or loss-model inputs. The vector is used only for transparent catalogue
@@ -90,6 +103,63 @@ const SOURCES = {
     url: "https://www.usgs.gov/programs/VHP",
   },
 } as const;
+
+// A catastrophe archive is federated: no one public database consistently
+// captures every hazard, geography, time period, footprint, or loss. These
+// cards identify the authoritative catalogue currently available for each
+// supported source family. Only the USGS catalogue is queried in-app today;
+// the other archives remain explicitly external until their data licence,
+// update process, and source-to-schema mapping are approved.
+export const ARCHIVE_SOURCES: ArchiveSource[] = [
+  {
+    id: "usgs-earthquakes",
+    name: "USGS Earthquake Catalog",
+    provider: "U.S. Geological Survey",
+    hazardScope: "Global earthquakes",
+    coverage: "Custom time, magnitude, and geographic queries; source responses are paginated.",
+    access: "Live GeoJSON query in RiskChain",
+    updateCadence: "Source-managed; live and historical query service",
+    integration: "search",
+    limitation: "An earthquake record is not a shaking footprint, damage observation, or CAT loss result.",
+    url: "https://earthquake.usgs.gov/fdsnws/event/1/",
+  },
+  {
+    id: "noaa-ibtracs",
+    name: "IBTrACS tropical cyclone archive",
+    provider: "NOAA National Centers for Environmental Information",
+    hazardScope: "Global tropical cyclones",
+    coverage: "1848–present, global best-track records from official warning centres.",
+    access: "Official download and map tools (CSV, shapefile, netCDF, WMS)",
+    updateCadence: "Annual archive update",
+    integration: "external",
+    limitation: "Best-track positions and winds are not a local wind-field, surge model, or insured-loss dataset.",
+    url: "https://www.ncei.noaa.gov/access/metadata/landing-page/bin/iso?id=gov.noaa.ncdc%3AC00834",
+  },
+  {
+    id: "noaa-storm-events",
+    name: "NOAA Storm Events Database",
+    provider: "NOAA National Centers for Environmental Information",
+    hazardScope: "United States weather and climate events",
+    coverage: "U.S. events from 1950 onward, distributed as source bulk files.",
+    access: "Official bulk archive",
+    updateCadence: "Source-managed archive releases",
+    integration: "external",
+    limitation: "U.S. coverage only; source reports require event-specific interpretation and are not a loss model.",
+    url: "https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/",
+  },
+  {
+    id: "smithsonian-volcano",
+    name: "Global Volcanism Program",
+    provider: "Smithsonian Institution",
+    hazardScope: "Volcanoes and documented eruptive activity",
+    coverage: "Global volcano reference information and eruption reporting.",
+    access: "Official catalogue and reports",
+    updateCadence: "Source-managed",
+    integration: "external",
+    limitation: "Volcanic reference records do not supply a local ashfall, lahar, or damage footprint by default.",
+    url: "https://volcano.si.edu/",
+  },
+];
 
 // The 30 records below are a source-linked, editorially curated catalogue of
 // documented catastrophes. Their displayed coordinate is a reference point for
