@@ -13,7 +13,7 @@ from app.schemas.news import NewsArticlesResponse
 
 router = APIRouter(prefix="/news", tags=["news"])
 
-NewsHazard = Literal["all", "flood", "wildfire", "earthquake", "storm", "drought"]
+NewsHazard = Literal["all", "flood", "wildfire", "earthquake", "storm", "drought", "cat_model", "resilience"]
 
 
 @router.get("/articles", response_model=NewsArticlesResponse)
@@ -29,12 +29,14 @@ async def get_news_articles(
         data_status=response.status,
         retrieved_at=response.retrieved_at,
         query_label={
-            "all": "Major natural hazards",
+            "all": "Global hazards, catastrophe modelling and resilience",
             "flood": "Flooding",
             "wildfire": "Wildfire",
             "earthquake": "Earthquake and tsunami",
             "storm": "Storm and wind",
             "drought": "Drought and heat",
+            "cat_model": "Catastrophe modelling",
+            "resilience": "Disaster resilience and adaptation",
         }[hazard],
         hazard_filter=hazard,
         hours=hours,

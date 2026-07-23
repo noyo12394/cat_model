@@ -47,13 +47,15 @@ const LIVE_FILTERS = [
   { id: "volcano", label: "Volcano", color: "#5f6368" },
 ];
 
-const NEWS_FILTERS: { id: "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought"; label: string }[] = [
-  { id: "all", label: "All hazards" },
+const NEWS_FILTERS: { id: "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought" | "cat_model" | "resilience"; label: string }[] = [
+  { id: "all", label: "All coverage" },
   { id: "flood", label: "Flood" },
   { id: "wildfire", label: "Wildfire" },
   { id: "earthquake", label: "Earthquake" },
   { id: "storm", label: "Storm" },
   { id: "drought", label: "Drought & heat" },
+  { id: "cat_model", label: "CAT modelling" },
+  { id: "resilience", label: "Resilience" },
 ];
 
 type WorkspaceUser = { name: string; email: string };
@@ -83,7 +85,7 @@ export function RiskChainWorkspace() {
   const [selection, setSelection] = useState<MapSelection | null>(null);
   const [eventsResponse, setEventsResponse] = useState<GlobalEventsResponse | null>(null);
   const [news, setNews] = useState<NewsArticlesResponse | null>(null);
-  const [newsHazard, setNewsHazard] = useState<"all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought">("all");
+  const [newsHazard, setNewsHazard] = useState<"all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought" | "cat_model" | "resilience">("all");
   const [newsHours, setNewsHours] = useState(24);
   const [newsLoading, setNewsLoading] = useState(false);
   const [coverage, setCoverage] = useState<DataCoverageItem[]>([]);
@@ -651,10 +653,10 @@ export function RiskChainWorkspace() {
 
         {view === "news" && <section className="floating-card content-card news-card">
           <div className="card-heading">
-            <div><span className="eyebrow">Publisher-linked article index</span><h2>Latest catastrophe reporting</h2></div>
+            <div><span className="eyebrow">Publisher-linked article index</span><h2>Latest hazard, CAT &amp; resilience coverage</h2></div>
             <div className="live-head-actions"><StatusBadge tone={news?.data_status === "live" ? "live" : "warning"}>{news?.data_status ?? "loading"}</StatusBadge><button className="icon-button" onClick={() => void refreshNews()} aria-label="Refresh live news" disabled={newsLoading}><RefreshCw size={15} /></button></div>
           </div>
-          <p className="news-lead">A live, source-linked view of publisher headlines covering natural hazards. News is kept separate from official alerts, observations, and CAT-model inputs.</p>
+          <p className="news-lead">A live, worldwide view of publisher headlines about natural hazards, catastrophe modelling, and resilience. It remains separate from official alerts, observations, and CAT-model inputs.</p>
           <div className="news-controls">
             <div className="hazard-filter" aria-label="News hazard filter">{NEWS_FILTERS.map((item) => <button key={item.id} className={newsHazard === item.id ? "active" : ""} onClick={() => setNewsHazard(item.id)}>{item.label}</button>)}</div>
             <label>Window<select value={newsHours} onChange={(event) => setNewsHours(Number(event.target.value))}><option value={24}>Last 24 hours</option><option value={72}>Last 72 hours</option><option value={168}>Last 7 days</option></select></label>

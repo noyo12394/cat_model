@@ -41,6 +41,68 @@ import type {
 } from "./types";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+type NewsTopic = "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought" | "cat_model" | "resilience";
+
+const GDELT_NEWS_QUERIES: Record<NewsTopic, { query: string; label: string }> = {
+  all: {
+    query: '(imagetag:"flood" OR imagetag:"earthquake" OR imagetag:"fire" OR imagetag:"hurricane" OR cyclone OR "tropical storm" OR landslide OR tsunami OR drought OR "catastrophe model" OR "catastrophe modelling" OR "disaster resilience" OR "climate resilience")',
+    label: "Global hazards, catastrophe modelling and resilience",
+  },
+  flood: { query: '(imagetag:"flood" OR "flash flood" OR inundation)', label: "Flooding" },
+  wildfire: { query: '(imagetag:"fire" OR wildfire OR "forest fire" OR bushfire)', label: "Wildfire" },
+  earthquake: { query: '(imagetag:"earthquake" OR earthquake OR aftershock OR tsunami)', label: "Earthquake and tsunami" },
+  storm: { query: '(imagetag:"hurricane" OR hurricane OR cyclone OR typhoon OR "tropical storm" OR tornado OR "severe weather")', label: "Storm and wind" },
+  drought: { query: '(drought OR "extreme heat" OR heatwave)', label: "Drought and heat" },
+  cat_model: { query: '("catastrophe model" OR "catastrophe modelling" OR "catastrophe modeling" OR "disaster risk model" OR "flood damage modelling" OR "fragility curve")', label: "Catastrophe modelling" },
+  resilience: { query: '("disaster resilience" OR "climate resilience" OR "resilient infrastructure" OR "climate adaptation" OR "disaster risk reduction")', label: "Disaster resilience and adaptation" },
+};
+
+function gdeltDate(value: unknown) {
+  if (typeof value !== "string" || !/^\d{8}T\d{6}Z$/.test(value)) return null;
+  const iso = `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}T${value.slice(9, 11)}:${value.slice(11, 13)}:${value.slice(13, 15)}Z`;
+  return Number.isNaN(Date.parse(iso)) ? null : iso;
+}
+
+async function browserGdeltNews(hazard: NewsTopic, hours: number): Promise<NewsArticlesResponse> {
+  const safeHours = Math.max(1, Math.min(168, Math.round(hours)));
+  const topic = GDELT_NEWS_QUERIES[hazard];
+  const url = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
+  url.search = new URLSearchParams({ query: topic.query, mode: "artlist", format: "json", sort: "datedesc", timespan: `${safeHours}h`, maxrecords: "50" }).toString();
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new ApiError(response.status, "The public GDELT article index did not return a readable result.");
+  const payload = await response.json() as { articles?: unknown[] };
+  if (!Array.isArray(payload.articles)) throw new ApiError(502, "The public GDELT article index returned an unexpected response.");
+  const seen = new Set<string>();
+  const articles = payload.articles.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const record = item as Record<string, unknown>;
+    const articleUrl = typeof record.url === "string" ? record.url : null;
+    const title = typeof record.title === "string" ? record.title.trim().replace(/\s+/g, " ") : null;
+    const publishedAt = gdeltDate(record.seendate);
+    if (!articleUrl || !/^https?:\/\//.test(articleUrl) || !title || !publishedAt || seen.has(articleUrl)) return [];
+    seen.add(articleUrl);
+    return [{
+      article_id: `gdelt-browser-${articleUrl}`,
+      title,
+      url: articleUrl,
+      publisher_domain: typeof record.domain === "string" && record.domain ? record.domain : "Publisher not reported",
+      source_country: typeof record.sourcecountry === "string" ? record.sourcecountry : null,
+      language: typeof record.language === "string" ? record.language : null,
+      published_at: publishedAt,
+    }];
+  });
+  return {
+    articles,
+    data_status: "live",
+    retrieved_at: new Date().toISOString(),
+    query_label: topic.label,
+    hazard_filter: hazard,
+    hours: safeHours,
+    source_name: "GDELT DOC 2.0 Article List",
+    source_url: "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/",
+    notice: "Publisher headlines are a live discovery index, not verified observations, official alerts, model inputs, or loss estimates. Open the original source and corroborate before acting.",
+  };
+}
 
 export class ApiError extends Error {
   constructor(
@@ -99,10 +161,12 @@ export const api = {
   globalEvents: () => request<GlobalEventsResponse>("/live/global-events"),
   refreshGlobalEvents: () => request<GlobalEventsResponse>("/live/global-events?force=true"),
   newsArticles: (
-    hazard: "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought" = "all",
+    hazard: NewsTopic = "all",
     hours = 24,
     force = false,
-  ) => request<NewsArticlesResponse>(`/news/articles?hazard=${encodeURIComponent(hazard)}&hours=${Math.max(1, Math.min(168, Math.round(hours)))}${force ? "&force=true" : ""}`),
+  ) => request<NewsArticlesResponse>(`/news/articles?hazard=${encodeURIComponent(hazard)}&hours=${Math.max(1, Math.min(168, Math.round(hours)))}${force ? "&force=true" : ""}`)
+    .then((response) => response.data_status === "unavailable" ? browserGdeltNews(hazard, hours) : response)
+    .catch(() => browserGdeltNews(hazard, hours)),
   globalOutlook: (horizonMinutes: number) => request<GlobalOutlookResponse>(`/live/global-outlook?horizon_minutes=${Math.max(0, Math.min(1440, Math.round(horizonMinutes)))}`),
   futureOutlook: (targetAt: string) => request<FutureOutlookResponse>(`/live/future-outlook?target_at=${encodeURIComponent(targetAt)}`),
   modelWeatherOutlook: (targetAt: string, center: [number, number], locationName: string) => request<ModelWeatherOutlookResponse>(

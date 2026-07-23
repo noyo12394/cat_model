@@ -854,7 +854,7 @@ export interface NewsArticlesResponse {
   data_status: DataStatus;
   retrieved_at: string;
   query_label: string;
-  hazard_filter: "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought";
+  hazard_filter: "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought" | "cat_model" | "resilience";
   hours: number;
   source_name: string;
   source_url: string;

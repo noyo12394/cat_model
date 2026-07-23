@@ -20,16 +20,35 @@ _CACHE_TTL_SECONDS = 300
 _MAX_ARTICLES = 50
 _cache: dict[tuple[str, int], tuple[float, AdapterResponse[NewsArticle]]] = {}
 
+# GDELT asks applications to keep request volume low.  This adapter is used by
+# a serverless app, where multiple browser sessions can otherwise collapse into
+# one shared egress IP and make a transient rate limit look like a broken feed.
+# The cache is deliberately kept only for successful source responses.
+_GDELT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (compatible; RiskChain/0.1; "
+        "+https://earthpulse-cat-model.vercel.app)"
+    ),
+}
+
 _QUERIES: dict[str, tuple[str, str]] = {
     "all": (
-        '(earthquake OR wildfire OR flood OR hurricane OR cyclone OR "tropical storm" OR landslide OR tsunami OR drought)',
-        "Major natural hazards",
+        '(imagetag:"flood" OR imagetag:"earthquake" OR imagetag:"fire" OR imagetag:"hurricane" OR cyclone OR "tropical storm" OR landslide OR tsunami OR drought OR "catastrophe model" OR "catastrophe modelling" OR "disaster resilience" OR "climate resilience")',
+        "Global hazards, catastrophe modelling and resilience",
     ),
     "flood": ('(flood OR "flash flood" OR inundation)', "Flooding"),
     "wildfire": ('(wildfire OR "forest fire" OR bushfire)', "Wildfire"),
     "earthquake": ('(earthquake OR aftershock OR tsunami)', "Earthquake and tsunami"),
     "storm": ('(hurricane OR cyclone OR typhoon OR "tropical storm" OR tornado OR "severe weather")', "Storm and wind"),
     "drought": ('(drought OR "extreme heat" OR heatwave)', "Drought and heat"),
+    "cat_model": (
+        '("catastrophe model" OR "catastrophe modelling" OR "catastrophe modeling" OR "disaster risk model" OR "flood damage modelling" OR "fragility curve")',
+        "Catastrophe modelling",
+    ),
+    "resilience": (
+        '("disaster resilience" OR "climate resilience" OR "resilient infrastructure" OR "climate adaptation" OR "disaster risk reduction")',
+        "Disaster resilience and adaptation",
+    ),
 }
 
 
@@ -88,6 +107,7 @@ async def fetch_disaster_news(
             "timespan": f"{normalized_hours}h",
             "maxrecords": _MAX_ARTICLES,
         },
+        headers=_GDELT_HEADERS,
         timeout=15.0,
     )
     raw_articles = payload.get("articles") if isinstance(payload, dict) else None
