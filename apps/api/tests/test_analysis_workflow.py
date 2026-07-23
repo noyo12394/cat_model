@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from app.api.v1 import analysis
 from app.core.config import Settings
 from app.schemas.analysis import AnalysisLocation, AnalysisRunRequest, AnalysisTotals, SourceRecord
-from app.services.cat.screening import _screening_budget, point_in_geometry
+from app.services.cat.screening import _prepared_nsi_features, _screening_budget, point_in_geometry
 
 LOCATION=AnalysisLocation(place_id="bethlehem-pa",name="Bethlehem, Pennsylvania",center=(-75.3705,40.6259),bbox=(-75.40,40.60,-75.34,40.65),state="Pennsylvania",state_fips="42",county="Lehigh County",county_fips="42077",tract="Census Tract 65",tract_geoid="42077006500")
 
@@ -23,6 +23,16 @@ def test_oversized_official_footprint_is_kept_but_not_sent_to_nsi():
     features=[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-80,20],[-70,20],[-70,30],[-80,30],[-80,20]]]},"properties":{}}]
     within_budget, reason=_screening_budget(features)
     assert not within_budget and reason and "broad" in reason
+
+def test_high_vertex_perimeter_uses_a_bounded_simplified_provider_geometry():
+    # Simplification is a documented request adaptation, never a new map layer
+    # or an invented intensity field. The original boundary is retained by the
+    # analysis result while the smaller copy is sent only to USACE.
+    ring=[[index / 100_000, 0.0] for index in range(5_200)] + [[0.052, 0.05], [0.0, 0.0]]
+    features=[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[ring]},"properties":{}}]
+    prepared, note=_prepared_nsi_features(features)
+    assert prepared is not None and note and "simplified" in note
+    assert len(prepared[0]["geometry"]["coordinates"][0]) <= 5_000
 
 @pytest.mark.asyncio
 async def test_zone_membership_returns_screening_and_never_loss(monkeypatch):

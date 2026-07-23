@@ -8,7 +8,7 @@ from app.schemas.analysis import AnalysisHazard, AnalysisManifest, AnalysisMode,
 from app.services.cat.hazard_providers import provider_for
 from app.services.cat.screening import run_flood_zone_screening, run_polygon_exposure_screening
 
-router=APIRouter(prefix="/cat",tags=["cat-analysis"]); CODE_VERSION="riskchain-analysis-0.2.0"
+router=APIRouter(prefix="/cat",tags=["cat-analysis"]); CODE_VERSION="riskchain-analysis-0.2.1"
 
 @router.get("/hazard-events",response_model=HazardEventSearchResponse)
 async def hazard_events(mode:AnalysisMode,hazard_type:AnalysisHazard,start_date:date|None=None,end_date:date|None=None,settings:Settings=Depends(settings_dep))->HazardEventSearchResponse:

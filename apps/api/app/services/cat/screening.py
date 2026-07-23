@@ -15,11 +15,61 @@ NSI_URL = "https://nsi.sec.usace.army.mil/nsiapi/structures"
 # this only prevents an unsafe aggregation request and never substitutes data.
 MAX_NSI_SCREENING_VERTICES = 5_000
 MAX_NSI_SCREENING_BBOX_DEGREES_SQUARED = 4.0
+MAX_NSI_SIMPLIFICATION_TOLERANCE_DEGREES = 0.003
 
 def _rings(geometry: dict[str, Any]) -> list[list[list[float]]]:
     if geometry.get("type") == "Polygon": return geometry.get("coordinates", [])
     if geometry.get("type") == "MultiPolygon": return [ring for polygon in geometry.get("coordinates", []) for ring in polygon]
     return []
+
+def _positions(features: list[dict[str, Any]]) -> list[list[float]]:
+    return [position for feature in features for ring in _rings(feature.get("geometry") or {}) for position in ring if len(position) >= 2]
+
+def _point_segment_distance_squared(point: list[float], start: list[float], end: list[float]) -> float:
+    """Planar degree-space distance used only to bound a provider request."""
+    dx, dy = end[0] - start[0], end[1] - start[1]
+    if dx == 0 and dy == 0:
+        return (point[0] - start[0]) ** 2 + (point[1] - start[1]) ** 2
+    fraction = max(0.0, min(1.0, ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / (dx * dx + dy * dy)))
+    projected_x, projected_y = start[0] + fraction * dx, start[1] + fraction * dy
+    return (point[0] - projected_x) ** 2 + (point[1] - projected_y) ** 2
+
+def _simplify_ring(ring: list[list[float]], tolerance: float) -> list[list[float]]:
+    """Douglas–Peucker simplification without a geospatial runtime dependency.
+
+    The original source polygon is never changed in the returned map layer.
+    This is used only to make an otherwise impossible NSI provider request
+    bounded and its tolerance is included in the source note.
+    """
+    if len(ring) <= 4:
+        return ring
+    closed = ring[0] == ring[-1]
+    points = ring[:-1] if closed else ring[:]
+    if len(points) < 3:
+        return ring
+    keep = {0, len(points) - 1}
+    stack = [(0, len(points) - 1)]
+    tolerance_squared = tolerance * tolerance
+    while stack:
+        first, last = stack.pop()
+        maximum, chosen = -1.0, None
+        for index in range(first + 1, last):
+            distance = _point_segment_distance_squared(points[index], points[first], points[last])
+            if distance > maximum:
+                maximum, chosen = distance, index
+        if chosen is not None and maximum > tolerance_squared:
+            keep.add(chosen)
+            stack.append((first, chosen))
+            stack.append((chosen, last))
+    simplified = [points[index] for index in sorted(keep)]
+    return simplified + [simplified[0]] if closed else simplified
+
+def _simplify_geometry(geometry: dict[str, Any], tolerance: float) -> dict[str, Any]:
+    if geometry.get("type") == "Polygon":
+        return {**geometry, "coordinates": [_simplify_ring(ring, tolerance) for ring in geometry.get("coordinates", [])]}
+    if geometry.get("type") == "MultiPolygon":
+        return {**geometry, "coordinates": [[_simplify_ring(ring, tolerance) for ring in polygon] for polygon in geometry.get("coordinates", [])]}
+    return geometry
 
 def _screening_budget(features: list[dict[str, Any]]) -> tuple[bool, str | None]:
     """Return whether an official geometry is safe for one NSI polygon query.
@@ -28,7 +78,7 @@ def _screening_budget(features: list[dict[str, Any]]) -> tuple[bool, str | None]
     area.  It keeps large forecast products from blocking the UI and preserves
     the distinction between a published footprint and an exposure calculation.
     """
-    positions = [position for feature in features for ring in _rings(feature.get("geometry") or {}) for position in ring if len(position) >= 2]
+    positions = _positions(features)
     if not positions:
         return False, "The official product did not contain polygon coordinates usable by the exposure service."
     if len(positions) > MAX_NSI_SCREENING_VERTICES:
@@ -42,6 +92,23 @@ def _screening_budget(features: list[dict[str, Any]]) -> tuple[bool, str | None]
     if bbox_area > MAX_NSI_SCREENING_BBOX_DEGREES_SQUARED:
         return False, "The official footprint covers too broad an area for one interactive NSI screening request."
     return True, None
+
+def _prepared_nsi_features(features: list[dict[str, Any]]) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """Return a bounded provider geometry and an auditable preparation note."""
+    within_budget, reason = _screening_budget(features)
+    if not within_budget and reason and "vertices" not in reason:
+        return None, reason
+    original_vertices = len(_positions(features))
+    if within_budget:
+        return features, None
+    tolerance = 0.00001
+    while tolerance <= MAX_NSI_SIMPLIFICATION_TOLERANCE_DEGREES:
+        simplified = [{**feature, "geometry": _simplify_geometry(feature.get("geometry") or {}, tolerance)} for feature in features]
+        simplified_vertices = len(_positions(simplified))
+        if simplified_vertices <= MAX_NSI_SCREENING_VERTICES:
+            return simplified, f"The original official boundary ({original_vertices:,} vertices) was simplified to {simplified_vertices:,} vertices at {tolerance:.5f}° only for the bounded NSI exposure query; the original geometry remains the displayed source layer."
+        tolerance *= 2
+    return None, f"The official footprint has {original_vertices:,} vertices and could not be reduced to the interactive screening limit within the {MAX_NSI_SIMPLIFICATION_TOLERANCE_DEGREES:.3f}° tolerance cap."
 
 def _inside_ring(point: tuple[float, float], ring: list[list[float]]) -> bool:
     x, y, inside, j = point[0], point[1], False, len(ring) - 1
@@ -135,13 +202,13 @@ async def run_polygon_exposure_screening(footprints: list[dict[str, Any]]) -> di
         if feature.get("geometry")
     ]
     if hazard_features:
-        within_budget, budget_reason = _screening_budget(hazard_features)
-        if not within_budget:
-            sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="not_applicable", note=f"Exposure aggregation was not requested. {budget_reason} Select a smaller area of interest before running an exposure screen."))
+        prepared_features, preparation_note = _prepared_nsi_features(hazard_features)
+        if prepared_features is None:
+            sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="not_applicable", note=f"Exposure aggregation was not requested. {preparation_note or 'The official geometry was not suitable for the bounded screening request.'} Select a smaller area of interest before running an exposure screen."))
         else:
             try:
                 async with httpx.AsyncClient(timeout=25.0) as client:
-                    features = await _query_nsi_polygons(client, hazard_features)
+                    features = await _query_nsi_polygons(client, prepared_features)
                 if len(features) > 10_000:
                     raise ValueError("NSI response exceeded safe limit")
                 unique: dict[str, dict[str, Any]] = {}
@@ -150,7 +217,8 @@ async def run_polygon_exposure_screening(footprints: list[dict[str, Any]]) -> di
                     key = str(props.get("fd_id") or props.get("bid") or feature.get("id") or feature.get("geometry"))
                     unique[key] = feature
                 structures = list(unique.values())
-                sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="loaded", note=f"{len(structures)} points intersected the supplied official hazard polygons."))
+                suffix = f" {preparation_note}" if preparation_note else ""
+                sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="loaded", note=f"{len(structures)} points intersected the supplied official hazard polygons.{suffix}"))
             except (httpx.HTTPError, ValueError, TypeError, KeyError):
                 sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="unavailable", note="Request failed or exceeded the safe screening limit; no substitute exposure values were used."))
 
@@ -171,4 +239,6 @@ async def run_polygon_exposure_screening(footprints: list[dict[str, Any]]) -> di
     limitations = ["Hazard-polygon membership is exposure screening only. Asset-level wind intensity and compatible vulnerability are not available, so no damage or dollar loss is calculated.", "NSI is a modelled national inventory for screening, not verified structure-level appraisal."]
     if any(source.status == "not_applicable" for source in sources):
         limitations.append("The official footprint was preserved, but its geographic extent exceeded the bounded interactive exposure-screening request. No exposure count was inferred.")
+    if any("simplified" in (source.note or "").lower() for source in sources):
+        limitations.append("The original official perimeter is displayed. Its boundary was simplified only for the bounded NSI query, so this is a screening count rather than a parcel-level determination.")
     return {"sources": sources, "totals": totals, "limitations": limitations}
