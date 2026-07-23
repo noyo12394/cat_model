@@ -172,6 +172,10 @@ async def fetch_wildfire_perimeter_geometry(event_id: str) -> list[dict[str, Any
             "outSR": 4326,
             "f": "geojson",
         },
+        # Official incident boundaries can contain tens of thousands of
+        # vertices. Give this one source-bound request enough time without
+        # making every live adapter slower.
+        timeout=20.0,
     )
     if not isinstance(payload, dict):
         return []

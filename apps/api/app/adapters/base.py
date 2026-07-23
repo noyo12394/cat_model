@@ -42,6 +42,7 @@ async def safe_get_json(
     url: str,
     params: dict | None = None,
     headers: dict[str, str] | None = None,
+    timeout: httpx.Timeout | float | None = None,
 ) -> dict | list | None:
     """GET JSON with a short timeout, returning None on any failure instead
     of raising. Adapters decide what "None" means for their fallback."""
@@ -49,7 +50,7 @@ async def safe_get_json(
         request_headers = {"User-Agent": "EarthPulse/0.1"}
         if headers:
             request_headers.update(headers)
-        async with httpx.AsyncClient(timeout=DEFAULT_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=timeout or DEFAULT_TIMEOUT) as client:
             resp = await client.get(url, params=params, headers=request_headers)
             resp.raise_for_status()
             return resp.json()

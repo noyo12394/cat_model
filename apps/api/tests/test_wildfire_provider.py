@@ -50,7 +50,7 @@ _GEOJSON_PAYLOAD = {
 
 
 def _stub(monkeypatch, list_payload=_LIST_PAYLOAD, geojson_payload=_GEOJSON_PAYLOAD):
-    async def fake_get_json(url, params=None, headers=None):
+    async def fake_get_json(url, params=None, headers=None, **_):
         return geojson_payload if params and params.get("f") == "geojson" else list_payload
 
     monkeypatch.setattr(nifc, "safe_get_json", fake_get_json)
@@ -76,7 +76,7 @@ async def test_active_events_are_observed_perimeters(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_service_outage_is_unavailable_not_calm(monkeypatch):
-    async def fake_get_json(url, params=None, headers=None):
+    async def fake_get_json(url, params=None, headers=None, **_):
         return None
 
     monkeypatch.setattr(nifc, "safe_get_json", fake_get_json)
@@ -90,6 +90,19 @@ async def test_footprint_returns_authoritative_geometry(monkeypatch):
     _stub(monkeypatch)
     footprint = await NIFCWildfireProvider().get_hazard_footprint("2026-CACDD-001234", "any")
     assert len(footprint) == 1 and footprint[0]["geometry"]["type"] == "Polygon"
+
+
+@pytest.mark.asyncio
+async def test_perimeter_fetch_gets_source_specific_timeout(monkeypatch):
+    received: dict = {}
+
+    async def fake_get_json(url, params=None, headers=None, **kwargs):
+        received.update(kwargs)
+        return _GEOJSON_PAYLOAD
+
+    monkeypatch.setattr(nifc, "safe_get_json", fake_get_json)
+    await nifc.fetch_wildfire_perimeter_geometry("2026-CACDD-001234")
+    assert received["timeout"] == 20.0
 
 
 @pytest.mark.asyncio
