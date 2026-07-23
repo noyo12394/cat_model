@@ -14,6 +14,7 @@ Bethlehem, PA / Lehigh Valley), following the phased scope in `docs/PRD.md`.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - system design and key decisions
 - [`docs/KNOWN_LIMITATIONS.md`](docs/KNOWN_LIMITATIONS.md) - what is real vs. scoped out, and why
 - [`docs/PARTNER_READINESS.md`](docs/PARTNER_READINESS.md) - industry-partner walkthrough, evidence posture and operational delivery gates
+- [`docs/CATASTROPHE_GENOME.md`](docs/CATASTROPHE_GENOME.md) - 3D live-event atlas and source-linked historical metadata laboratory, including its strict non-modelling limits
 
 ## Quickstart (no API keys required)
 
@@ -84,6 +85,17 @@ Known coverage gaps are stated in the UI: historical NHC best-track search,
 wildfire perimeter analysis, live flood inundation, ACS profiles, ShakeMap
 tract aggregation, durable cross-instance run storage, and production
 vulnerability/loss functions remain unavailable.
+
+## Catastrophe Genome Lab
+
+The **Genome Lab** is an optional visual-navigation layer in the web workspace.
+Its 3D atlas uses the live GDACS event centres already retrieved by the app and
+a separate, source-linked catalogue of 24 historical event metadata records.
+The accompanying 29-trait helix and nearest-neighbour comparison are
+deterministic catalogue navigation only—not a loss model, analogue engine,
+fragility curve, forecast, event footprint, or severity score. See
+[`docs/CATASTROPHE_GENOME.md`](docs/CATASTROPHE_GENOME.md) for the full
+provenance and method.
 
 ## Repository layout
 

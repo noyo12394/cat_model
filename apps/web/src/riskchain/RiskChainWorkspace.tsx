@@ -2,7 +2,7 @@
 
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, BarChart3, BookOpen, Bot, CheckCircle2, ChevronDown, Database,
+  Activity, AlertTriangle, BarChart3, BookOpen, Bot, CheckCircle2, ChevronDown, Database, Dna,
   Download, ExternalLink, FlaskConical, Globe2, GraduationCap, Layers,
   Menu, Moon, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
   UserRound, X,
@@ -21,8 +21,9 @@ import { EventTape } from "./EventTape";
 import { GeoAgentPanel, type GeoAgentLayerState } from "./GeoAgentPanel";
 import { WorkspaceMission } from "./WorkspaceMission";
 import { EventGenome } from "./EventGenome";
+import { CatastropheGenomeLab } from "./genome/CatastropheGenomeLab";
 
-type View = "explore" | "model" | "results" | "live" | "learn" | "research";
+type View = "explore" | "model" | "results" | "live" | "learn" | "research" | "genome";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account" | "genome";
 
 const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
@@ -30,6 +31,7 @@ const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
   { id: "model", label: "Model", icon: FlaskConical },
   { id: "results", label: "Results", icon: BarChart3 },
   { id: "live", label: "Live", icon: Radio },
+  { id: "genome", label: "Genome Lab", icon: Dna },
   { id: "learn", label: "Learn CAT", icon: GraduationCap },
   { id: "research", label: "Research", icon: BookOpen },
 ];
@@ -197,7 +199,7 @@ export function RiskChainWorkspace() {
       if (!selection) setScope("global");
       if (hazard === "all" || hazard === "cyclone" || hazard === "drought" || hazard === "volcano") setHazard("flood");
     }
-    if (next === "live" || next === "explore") setScope("global");
+    if (next === "live" || next === "explore" || next === "genome") setScope("global");
   }
 
   function openModelReadiness() {
@@ -447,7 +449,7 @@ export function RiskChainWorkspace() {
   }
 
   return (
-    <main className={`riskchain-app ${(operationsMode || view === "model" || view === "results" || view === "live") ? "operations terminal" : "light"}`}>
+    <main className={`riskchain-app ${(operationsMode || view === "model" || view === "results" || view === "live" || view === "genome") ? "operations terminal" : "light"}`}>
       <a href="#workspace" className="skip-link">Skip to map workspace</a>
       <header className="topbar">
         <button className="icon-button mobile-menu" onClick={() => setMobileNav((value) => !value)} aria-label={mobileNav ? "Close navigation" : "Open navigation"} aria-expanded={mobileNav} aria-controls="primary-navigation"><Menu size={20} /></button>
@@ -502,7 +504,7 @@ export function RiskChainWorkspace() {
         <RiskMap
           events={geoLayers.events && scope === "global" ? visibleEvents : []}
           scope={scope}
-          operationsMode={operationsMode || view === "model" || view === "live"}
+          operationsMode={operationsMode || view === "model" || view === "live" || view === "genome"}
           hazard={hazard}
           focus={selection?.center}
           focusZoom={selection?.zoom}
@@ -515,15 +517,17 @@ export function RiskChainWorkspace() {
           onViewportChange={setMapViewport}
         />
 
-        <div className="map-toolbar">
+        {view !== "genome" && <div className="map-toolbar">
           <button className={panel === "layers" ? "active" : ""} onClick={() => setPanel(panel === "layers" ? "none" : "layers")}><Layers size={17} /> Layers <ChevronDown size={14} /></button>
           <button onClick={() => setScope(scope === "global" ? "local" : "global")}><Globe2 size={17} /> {scope === "global" ? "Global" : "Bethlehem"}</button>
           <button onClick={() => setPanel(panel === "sources" ? "none" : "sources")}><Database size={17} /> Sources</button>
-        </div>
+        </div>}
 
-        <button className="workspace-about" onClick={() => setPanel("roadmap")}>About & roadmap</button>
+        {view !== "genome" && <button className="workspace-about" onClick={() => setPanel("roadmap")}>About & roadmap</button>}
 
         {(view === "explore" || view === "live") && <EventTape events={geoLayers.events ? visibleEvents : []} onSelect={onSelect} />}
+
+        {view === "genome" && <CatastropheGenomeLab liveEvents={events} onSelectLive={(next) => { onSelect(next); setView("live"); }} />}
 
         {view === "explore" && <section className="floating-card intro-card">
           <StatusBadge tone="live">Map-first workspace</StatusBadge>
