@@ -13,6 +13,7 @@ from app.api.v1 import (
     learn,
     live,
     models,
+    news,
     places,
     portfolio,
     research,
@@ -34,6 +35,7 @@ api_router.include_router(portfolio.router)
 api_router.include_router(assistant.router)
 api_router.include_router(sources.router)
 api_router.include_router(models.router)
+api_router.include_router(news.router)
 api_router.include_router(risks.router)
 api_router.include_router(community.router)
 api_router.include_router(catmodel.router)

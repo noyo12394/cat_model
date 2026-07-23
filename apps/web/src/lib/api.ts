@@ -11,6 +11,7 @@ import type {
   IncidentDetail,
   IncidentSummary,
   LiveEventsResponse,
+  NewsArticlesResponse,
   GlobalEventsResponse,
   FutureOutlookResponse,
   ModelWeatherOutlookResponse,
@@ -97,6 +98,11 @@ export const api = {
   liveEvents: () => request<LiveEventsResponse>("/live/events"),
   globalEvents: () => request<GlobalEventsResponse>("/live/global-events"),
   refreshGlobalEvents: () => request<GlobalEventsResponse>("/live/global-events?force=true"),
+  newsArticles: (
+    hazard: "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought" = "all",
+    hours = 24,
+    force = false,
+  ) => request<NewsArticlesResponse>(`/news/articles?hazard=${encodeURIComponent(hazard)}&hours=${Math.max(1, Math.min(168, Math.round(hours)))}${force ? "&force=true" : ""}`),
   globalOutlook: (horizonMinutes: number) => request<GlobalOutlookResponse>(`/live/global-outlook?horizon_minutes=${Math.max(0, Math.min(1440, Math.round(horizonMinutes)))}`),
   futureOutlook: (targetAt: string) => request<FutureOutlookResponse>(`/live/future-outlook?target_at=${encodeURIComponent(targetAt)}`),
   modelWeatherOutlook: (targetAt: string, center: [number, number], locationName: string) => request<ModelWeatherOutlookResponse>(

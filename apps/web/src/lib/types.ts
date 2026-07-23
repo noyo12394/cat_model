@@ -839,6 +839,29 @@ export interface LiveEventsResponse {
   generated_at: string;
 }
 
+export interface NewsArticle {
+  article_id: string;
+  title: string;
+  url: string;
+  publisher_domain: string;
+  source_country?: string | null;
+  language?: string | null;
+  published_at: string;
+}
+
+export interface NewsArticlesResponse {
+  articles: NewsArticle[];
+  data_status: DataStatus;
+  retrieved_at: string;
+  query_label: string;
+  hazard_filter: "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought";
+  hours: number;
+  source_name: string;
+  source_url: string;
+  notice: string;
+  error?: string | null;
+}
+
 export interface HazardSignalSummary {
   signal_id: string;
   hazard_type: string;

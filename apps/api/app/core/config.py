@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     usgs_water_base_url: str = "https://api.waterdata.usgs.gov/ogcapi/v0"
     usgs_quake_base_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0"
     gdacs_base_url: str = "https://www.gdacs.org/gdacsapi/api"
+    # Public article-index endpoint. RiskChain stores and displays only the
+    # metadata returned by this source (title, URL, publisher and timestamp),
+    # never copied article text.
+    gdelt_doc_base_url: str = "https://api.gdeltproject.org/api/v2/doc/doc"
     firms_map_key: str | None = None  # NASA FIRMS MAP_KEY
     nasa_firms_map_key: str | None = None
     census_api_key: str | None = None

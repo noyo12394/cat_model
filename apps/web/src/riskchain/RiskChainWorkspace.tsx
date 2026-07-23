@@ -4,13 +4,13 @@ import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, 
 import {
   Activity, AlertTriangle, BarChart3, BookOpen, Bot, CheckCircle2, ChevronDown, Database, Dna,
   Download, ExternalLink, FlaskConical, Globe2, GraduationCap, Layers,
-  Menu, Moon, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
+  Menu, Moon, Newspaper, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
   UserRound, X,
 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import type {
   AnalysisLocation, AnalysisRunResult, CatModelRunResult, DataCoverageItem, GlobalEventsResponse,
-  LearnLesson, LearnLessonSummary, ResearchSearchResponse, RoadmapResponse,
+  LearnLesson, LearnLessonSummary, NewsArticlesResponse, ResearchSearchResponse, RoadmapResponse,
   CopilotAnswer, GlobalEvent, ModelResultLayer, PlaceSearchResult, ProbabilisticResult, VulnerabilityFunction,
 } from "@/lib/types";
 import { RiskMap, type MapSelection, type MapViewport } from "./RiskMap";
@@ -23,7 +23,7 @@ import { WorkspaceMission } from "./WorkspaceMission";
 import { EventGenome } from "./EventGenome";
 import { CatastropheGenomeLab } from "./genome/CatastropheGenomeLab";
 
-type View = "explore" | "model" | "results" | "live" | "learn" | "research" | "genome";
+type View = "explore" | "model" | "results" | "live" | "news" | "learn" | "research" | "genome";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account" | "genome";
 
 const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
@@ -31,6 +31,7 @@ const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
   { id: "model", label: "Model", icon: FlaskConical },
   { id: "results", label: "Results", icon: BarChart3 },
   { id: "live", label: "Live", icon: Radio },
+  { id: "news", label: "News", icon: Newspaper },
   { id: "genome", label: "Genome Lab", icon: Dna },
   { id: "learn", label: "Learn CAT", icon: GraduationCap },
   { id: "research", label: "Research", icon: BookOpen },
@@ -44,6 +45,15 @@ const LIVE_FILTERS = [
   { id: "wildfire", label: "Wildfire", color: "#f4511e" },
   { id: "drought", label: "Drought", color: "#a56a21" },
   { id: "volcano", label: "Volcano", color: "#5f6368" },
+];
+
+const NEWS_FILTERS: { id: "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought"; label: string }[] = [
+  { id: "all", label: "All hazards" },
+  { id: "flood", label: "Flood" },
+  { id: "wildfire", label: "Wildfire" },
+  { id: "earthquake", label: "Earthquake" },
+  { id: "storm", label: "Storm" },
+  { id: "drought", label: "Drought & heat" },
 ];
 
 type WorkspaceUser = { name: string; email: string };
@@ -72,6 +82,10 @@ export function RiskChainWorkspace() {
   const [hazard, setHazard] = useState("all");
   const [selection, setSelection] = useState<MapSelection | null>(null);
   const [eventsResponse, setEventsResponse] = useState<GlobalEventsResponse | null>(null);
+  const [news, setNews] = useState<NewsArticlesResponse | null>(null);
+  const [newsHazard, setNewsHazard] = useState<"all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought">("all");
+  const [newsHours, setNewsHours] = useState(24);
+  const [newsLoading, setNewsLoading] = useState(false);
   const [coverage, setCoverage] = useState<DataCoverageItem[]>([]);
   const [lessons, setLessons] = useState<LearnLessonSummary[]>([]);
   const [lesson, setLesson] = useState<LearnLesson | null>(null);
@@ -121,6 +135,24 @@ export function RiskChainWorkspace() {
     const refresh = window.setInterval(() => void api.globalEvents().then(setEventsResponse).catch(() => undefined), 300_000);
     return () => window.clearInterval(refresh);
   }, []);
+
+  useEffect(() => {
+    if (view !== "news") return;
+    let cancelled = false;
+    void Promise.resolve().then(async () => {
+      if (cancelled) return;
+      setNewsLoading(true);
+      try { setNews(await api.newsArticles(newsHazard, newsHours)); }
+      catch {
+        if (!cancelled) setNews({
+          articles: [], data_status: "unavailable", retrieved_at: new Date().toISOString(), query_label: "Live news", hazard_filter: newsHazard, hours: newsHours,
+          source_name: "GDELT DOC 2.0 Article List", source_url: "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/",
+          notice: "The live article index is unavailable. No substitute headlines are shown.", error: "The live article index could not be reached.",
+        });
+      } finally { if (!cancelled) setNewsLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, [view, newsHazard, newsHours]);
 
   useEffect(() => {
     const term = query.trim();
@@ -199,7 +231,7 @@ export function RiskChainWorkspace() {
       if (!selection) setScope("global");
       if (hazard === "all" || hazard === "cyclone" || hazard === "drought" || hazard === "volcano") setHazard("flood");
     }
-    if (next === "live" || next === "explore" || next === "genome") setScope("global");
+    if (next === "live" || next === "news" || next === "explore" || next === "genome") setScope("global");
   }
 
   function openModelReadiness() {
@@ -230,6 +262,17 @@ export function RiskChainWorkspace() {
     try { setEventsResponse(await api.refreshGlobalEvents()); }
     catch { setNotice("The official GDACS feed could not be refreshed. Existing events were not relabelled as current."); }
     finally { setLoading(false); }
+  }
+
+  async function refreshNews() {
+    setNewsLoading(true);
+    try { setNews(await api.newsArticles(newsHazard, newsHours, true)); }
+    catch { setNews({
+      articles: [], data_status: "unavailable", retrieved_at: new Date().toISOString(), query_label: "Live news", hazard_filter: newsHazard, hours: newsHours,
+      source_name: "GDELT DOC 2.0 Article List", source_url: "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/",
+      notice: "The live article index is unavailable. No substitute headlines are shown.", error: "The live article index could not be reached.",
+    }); }
+    finally { setNewsLoading(false); }
   }
 
   function signInDemo(event: FormEvent) {
@@ -449,7 +492,7 @@ export function RiskChainWorkspace() {
   }
 
   return (
-    <main className={`riskchain-app ${(operationsMode || view === "model" || view === "results" || view === "live" || view === "genome") ? "operations terminal" : "light"}`}>
+    <main className={`riskchain-app ${(operationsMode || view === "model" || view === "results" || view === "live" || view === "news" || view === "genome") ? "operations terminal" : "light"}`}>
       <a href="#workspace" className="skip-link">Skip to map workspace</a>
       <header className="topbar">
         <button className="icon-button mobile-menu" onClick={() => setMobileNav((value) => !value)} aria-label={mobileNav ? "Close navigation" : "Open navigation"} aria-expanded={mobileNav} aria-controls="primary-navigation"><Menu size={20} /></button>
@@ -504,7 +547,7 @@ export function RiskChainWorkspace() {
         <RiskMap
           events={geoLayers.events && scope === "global" ? visibleEvents : []}
           scope={scope}
-          operationsMode={operationsMode || view === "model" || view === "live" || view === "genome"}
+          operationsMode={operationsMode || view === "model" || view === "live" || view === "news" || view === "genome"}
           hazard={hazard}
           focus={selection?.center}
           focusZoom={selection?.zoom}
@@ -604,6 +647,24 @@ export function RiskChainWorkspace() {
           {eventsResponse?.possibly_truncated && <p className="catalog-limit"><AlertTriangle size={13} /> The documented {eventsResponse.result_cap}-record retrieval cap was reached. Older matching GDACS records may exist.</p>}
           {!visibleEvents.length && <div className="empty-live">No current events match this filter in the official feed.</div>}
           <p className="microcopy">GDACS information supports awareness and coordination; follow national and local authorities for warnings.</p>
+        </section>}
+
+        {view === "news" && <section className="floating-card content-card news-card">
+          <div className="card-heading">
+            <div><span className="eyebrow">Publisher-linked article index</span><h2>Latest catastrophe reporting</h2></div>
+            <div className="live-head-actions"><StatusBadge tone={news?.data_status === "live" ? "live" : "warning"}>{news?.data_status ?? "loading"}</StatusBadge><button className="icon-button" onClick={() => void refreshNews()} aria-label="Refresh live news" disabled={newsLoading}><RefreshCw size={15} /></button></div>
+          </div>
+          <p className="news-lead">A live, source-linked view of publisher headlines covering natural hazards. News is kept separate from official alerts, observations, and CAT-model inputs.</p>
+          <div className="news-controls">
+            <div className="hazard-filter" aria-label="News hazard filter">{NEWS_FILTERS.map((item) => <button key={item.id} className={newsHazard === item.id ? "active" : ""} onClick={() => setNewsHazard(item.id)}>{item.label}</button>)}</div>
+            <label>Window<select value={newsHours} onChange={(event) => setNewsHours(Number(event.target.value))}><option value={24}>Last 24 hours</option><option value={72}>Last 72 hours</option><option value={168}>Last 7 days</option></select></label>
+          </div>
+          <div className="news-provenance"><Database size={14} /><span><strong>{news?.source_name ?? "GDELT DOC 2.0 Article List"}</strong><small>{news ? `${news.articles.length} article records · retrieved ${dateTime(news.retrieved_at)}` : "Connecting to the article index…"}</small></span></div>
+          {newsLoading && <div className="empty-live">Refreshing publisher-linked article records…</div>}
+          {!newsLoading && news?.data_status === "live" && <div className="news-list">{news.articles.map((article) => <a key={article.article_id} href={article.url} target="_blank" rel="noreferrer"><span className="news-source">{article.publisher_domain}</span><div><h3>{article.title}</h3><small>{dateTime(article.published_at)}{article.source_country ? ` · ${article.source_country}` : ""}{article.language ? ` · ${article.language}` : ""}</small></div><ExternalLink size={16} aria-hidden="true" /></a>)}</div>}
+          {!newsLoading && news?.data_status === "live" && news.articles.length === 0 && <div className="empty-live">No matching publisher records were returned for this time window.</div>}
+          {!newsLoading && news?.data_status === "unavailable" && <div className="news-unavailable"><AlertTriangle size={17} /><div><strong>Live article index unavailable</strong><p>{news.error ?? news.notice}</p></div></div>}
+          <p className="microcopy">{news?.notice ?? "Headlines are publisher-reported leads, not verified observations or model outputs."}</p>
         </section>}
 
         {view === "learn" && <section className="floating-card content-card learn-card">
