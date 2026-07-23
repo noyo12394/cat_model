@@ -40,5 +40,13 @@ async def get_news_articles(
         }[hazard],
         hazard_filter=hazard,
         hours=hours,
+        source_name=response.source_name,
+        source_url=response.source_url or "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/",
+        notice=(
+            "Article records are published headline leads, not verified observations, official alerts, model inputs, or loss estimates. "
+            "Open the original source and corroborate before acting."
+            if response.status.value == "live" and response.source_name == "GDELT DOC 2.0 Article List"
+            else response.note or "News records are source-linked reading leads, not hazard measurements or model outputs."
+        ),
         error=response.note if response.status.value == "unavailable" else None,
     )

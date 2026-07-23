@@ -36,6 +36,7 @@ class AdapterResponse(Generic[T]):
     items: list[T] = field(default_factory=list)
     retrieved_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     note: str | None = None
+    source_url: str | None = None
 
 
 async def safe_get_json(

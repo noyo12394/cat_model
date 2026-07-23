@@ -10,14 +10,18 @@ from __future__ import annotations
 import hashlib
 import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from xml.etree import ElementTree
 
-from app.adapters.base import AdapterResponse, safe_get_json
+from app.adapters.base import AdapterResponse, safe_get_bytes, safe_get_json
 from app.core.config import Settings
 from app.schemas.enums import DataStatus
 from app.schemas.news import NewsArticle
 
 _CACHE_TTL_SECONDS = 300
 _MAX_ARTICLES = 50
+_GDELT_DOC_URL = "https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/"
+_UN_NEWS_CLIMATE_RSS_URL = "https://news.un.org/feed/subscribe/en/news/topic/climate-change/feed/rss.xml"
 _cache: dict[tuple[str, int], tuple[float, AdapterResponse[NewsArticle]]] = {}
 
 # GDELT asks applications to keep request volume low.  This adapter is used by
@@ -81,6 +85,58 @@ def _article_from_raw(item: object) -> NewsArticle | None:
     )
 
 
+def _un_news_article_from_rss(item: ElementTree.Element) -> NewsArticle | None:
+    """Parse only public headline metadata from UN News' published RSS feed."""
+    title = item.findtext("title")
+    url = item.findtext("link")
+    published = item.findtext("pubDate")
+    if not isinstance(title, str) or not title.strip() or not isinstance(url, str) or not url.startswith(("http://", "https://")) or not isinstance(published, str):
+        return None
+    try:
+        published_at = parsedate_to_datetime(published).astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+    digest = hashlib.sha256(url.encode("utf-8")).hexdigest()[:20]
+    return NewsArticle(
+        article_id=f"un-news-{digest}",
+        title=" ".join(title.split()),
+        url=url,
+        publisher_domain="news.un.org",
+        source_country=None,
+        language="English",
+        published_at=published_at,
+    )
+
+
+async def _fetch_un_news_resilience_fallback() -> AdapterResponse[NewsArticle] | None:
+    """Use an official, published RSS feed only when GDELT is unavailable.
+
+    This is intentionally a *separate labelled source*, not a generated
+    replacement for GDELT. It gives the worldwide all/resilience view a useful
+    official climate-and-resilience reading list during an upstream outage.
+    """
+    raw = await safe_get_bytes(_UN_NEWS_CLIMATE_RSS_URL)
+    if not raw:
+        return None
+    try:
+        root = ElementTree.fromstring(raw)
+    except ElementTree.ParseError:
+        return None
+    articles = [article for item in root.findall("./channel/item") if (article := _un_news_article_from_rss(item)) is not None]
+    if not articles:
+        return None
+    return AdapterResponse(
+        source_name="UN News RSS — Climate and Environment",
+        source_url="https://news.un.org/en/news/topic/climate-change",
+        status=DataStatus.LIVE,
+        items=sorted(articles, key=lambda article: article.published_at, reverse=True)[:_MAX_ARTICLES],
+        note=(
+            "GDELT is temporarily unavailable; showing the latest published UN News "
+            "climate and resilience headlines instead."
+        ),
+    )
+
+
 async def fetch_disaster_news(
     settings: Settings,
     *,
@@ -112,11 +168,17 @@ async def fetch_disaster_news(
     )
     raw_articles = payload.get("articles") if isinstance(payload, dict) else None
     if not isinstance(raw_articles, list):
+        if normalized_hazard in {"all", "resilience", "drought"}:
+            fallback = await _fetch_un_news_resilience_fallback()
+            if fallback is not None:
+                _cache[cache_key] = (now, fallback)
+                return fallback
         return AdapterResponse(
             source_name="GDELT DOC 2.0 Article List",
+            source_url=_GDELT_DOC_URL,
             status=DataStatus.UNAVAILABLE,
             items=[],
-            note="The GDELT article index is unavailable. No substitute headlines are shown.",
+            note="The live publisher article index is temporarily unavailable. No fallback source covers this filter.",
         )
 
     by_url: dict[str, NewsArticle] = {}
@@ -126,6 +188,7 @@ async def fetch_disaster_news(
             by_url[str(article.url)] = article
     result = AdapterResponse(
         source_name="GDELT DOC 2.0 Article List",
+        source_url=_GDELT_DOC_URL,
         status=DataStatus.LIVE,
         items=sorted(by_url.values(), key=lambda article: article.published_at, reverse=True),
         note=f"{len(by_url)} publisher-linked article records returned for {query_label.lower()}.",
