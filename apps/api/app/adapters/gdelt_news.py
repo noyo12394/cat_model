@@ -35,6 +35,12 @@ _GDELT_HEADERS = {
     ),
 }
 
+_UN_NEWS_RELEVANCE_TERMS = (
+    "adaptation", "climate", "disaster", "drought", "earthquake", "emergency",
+    "environment", "flood", "heat", "hurricane", "landslide", "methane",
+    "resilience", "risk", "storm", "tsunami", "typhoon", "weather", "wildfire",
+)
+
 _QUERIES: dict[str, tuple[str, str]] = {
     "all": (
         '(imagetag:"flood" OR imagetag:"earthquake" OR imagetag:"fire" OR imagetag:"hurricane" OR cyclone OR "tropical storm" OR landslide OR tsunami OR drought OR "catastrophe model" OR "catastrophe modelling" OR "disaster resilience" OR "climate resilience")',
@@ -91,6 +97,8 @@ def _un_news_article_from_rss(item: ElementTree.Element) -> NewsArticle | None:
     url = item.findtext("link")
     published = item.findtext("pubDate")
     if not isinstance(title, str) or not title.strip() or not isinstance(url, str) or not url.startswith(("http://", "https://")) or not isinstance(published, str):
+        return None
+    if not any(term in title.casefold() for term in _UN_NEWS_RELEVANCE_TERMS):
         return None
     try:
         published_at = parsedate_to_datetime(published).astimezone(timezone.utc)
