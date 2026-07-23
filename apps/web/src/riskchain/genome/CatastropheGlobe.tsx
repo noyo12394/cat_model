@@ -3,7 +3,9 @@
 import { Html, Line, OrbitControls, Stars } from "@react-three/drei";
 import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
+import { feature } from "topojson-client";
 import * as THREE from "three";
+import countriesTopology from "world-atlas/countries-110m.json";
 
 export type GlobeEntry = {
   id: string;
@@ -49,6 +51,24 @@ function Graticule() {
   </group>;
 }
 
+function countryRings(geometry: GeoJSON.Geometry | null): Array<Array<[number, number]>> {
+  if (!geometry) return [];
+  if (geometry.type === "Polygon") return geometry.coordinates.map((ring) => ring as Array<[number, number]>);
+  if (geometry.type === "MultiPolygon") return geometry.coordinates.flatMap((polygon) => polygon.map((ring) => ring as Array<[number, number]>));
+  return [];
+}
+
+function CountryBorders() {
+  const lines = useMemo(() => {
+    const collection = feature(countriesTopology as never, countriesTopology.objects.countries as never) as unknown as GeoJSON.FeatureCollection;
+    return collection.features.flatMap((country) => countryRings(country.geometry).filter((ring) => ring.length > 2).map((ring, index) => ({
+      id: `${country.properties?.name ?? "country"}-${index}`,
+      points: ring.map(([longitude, latitude]) => toGlobePosition([longitude, latitude], RADIUS + 0.012)),
+    })));
+  }, []);
+  return <group>{lines.map((line) => <Line key={line.id} points={line.points} color="#83aeca" transparent opacity={0.34} lineWidth={0.72} />)}</group>;
+}
+
 function Beacon({ entry, selected, onSelect }: { entry: GlobeEntry; selected: boolean; onSelect: (entry: GlobeEntry) => void }) {
   const { point, quaternion, height } = useMemo(() => {
     const point = toGlobePosition(entry.center, RADIUS + 0.02);
@@ -92,7 +112,7 @@ function GlobeScene({ entries, selectedId, onSelect, autoRotate }: Props) {
     <ambientLight intensity={0.75} color="#9fc8e8" />
     <pointLight position={[4, 3, 5]} intensity={14} color="#8fd2ff" />
     <pointLight position={[-4, -2, 2]} intensity={7} color="#ff8a3d" />
-    <Stars radius={70} depth={30} count={1200} factor={2} saturation={0} fade speed={0.3} />
+    <Stars radius={70} depth={30} count={800} factor={2} saturation={0} fade speed={0} />
     <group rotation={[0.08, -0.58, 0]}>
       <mesh>
         <sphereGeometry args={[RADIUS, 64, 64]} />
@@ -103,6 +123,7 @@ function GlobeScene({ entries, selectedId, onSelect, autoRotate }: Props) {
         <meshBasicMaterial color="#3b93c9" transparent opacity={0.07} side={THREE.BackSide} />
       </mesh>
       <Graticule />
+      <CountryBorders />
       {entries.map((entry) => <Beacon key={entry.id} entry={entry} selected={entry.id === selectedId} onSelect={onSelect} />)}
     </group>
     <OrbitControls
@@ -119,7 +140,7 @@ function GlobeScene({ entries, selectedId, onSelect, autoRotate }: Props) {
 
 export function CatastropheGlobe({ entries, selectedId, onSelect, autoRotate }: Props) {
   return <div className="catastrophe-globe" role="img" aria-label="Interactive three-dimensional globe of catastrophe event reference locations. Drag to orbit, scroll to zoom, and select a beacon for details.">
-    <Canvas camera={{ position: [0, 0.25, 5.65], fov: 42 }} dpr={[1, 1.6]} gl={{ antialias: true, powerPreference: "high-performance" }}>
+    <Canvas frameloop={autoRotate ? "always" : "demand"} camera={{ position: [0, 0.25, 5.65], fov: 42 }} dpr={[1, 1.25]} gl={{ antialias: true, powerPreference: "high-performance" }}>
       <GlobeScene entries={entries} selectedId={selectedId} onSelect={onSelect} autoRotate={autoRotate} />
     </Canvas>
     <div className="globe-gesture-hint">Drag to orbit · scroll to zoom · select a beacon</div>

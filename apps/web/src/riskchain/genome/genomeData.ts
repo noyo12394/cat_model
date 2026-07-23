@@ -62,6 +62,7 @@ export const GENOME_TRAITS: GenomeTrait[] = [
   { id: "secondary_landslide", label: "Landslide context", group: "Secondary" },
   { id: "secondary_smoke", label: "Smoke context", group: "Secondary" },
   { id: "secondary_lahar", label: "Lahar context", group: "Secondary" },
+  { id: "secondary_compound", label: "Multiple secondary contexts", group: "Secondary" },
   { id: "archive_usgs", label: "USGS archive family", group: "Archive" },
   { id: "archive_noaa", label: "NOAA archive family", group: "Archive" },
   { id: "archive_official_other", label: "Other official archive", group: "Archive" },
@@ -90,11 +91,17 @@ const SOURCES = {
   },
 } as const;
 
-// The 24 records below are a source-linked, editorially curated catalogue of
+// The 30 records below are a source-linked, editorially curated catalogue of
 // documented catastrophes. Their displayed coordinate is a reference point for
 // atlas navigation, never an event extent, fault plane, wind field, perimeter,
 // flood footprint, or damage footprint.
 export const HISTORICAL_GENOME_EVENTS: HistoricalGenomeEvent[] = [
+  { id: "san-francisco-1906", name: "San Francisco earthquake", year: 1906, dateLabel: "1906", country: "United States", center: [-122.42, 37.77], hazard: "earthquake", setting: "coastal", onset: "rapid", drivers: ["ground"], secondary: [], sourceFamily: "usgs", sourceLabel: SOURCES.usgs.label, sourceUrl: SOURCES.usgs.url, coordinateNote: "Reference San Francisco location; not a rupture, shaking, fire, or loss footprint.", summary: "A documented earthquake represented by a city reference location for catalogue navigation." },
+  { id: "kanto-1923", name: "Great Kantō earthquake", year: 1923, dateLabel: "1923", country: "Japan", center: [139.6, 35.2], hazard: "earthquake", setting: "coastal", onset: "rapid", drivers: ["ground"], secondary: [], sourceFamily: "usgs", sourceLabel: SOURCES.usgs.label, sourceUrl: SOURCES.usgs.url, coordinateNote: "Reference Kantō-region location; not a rupture, shaking, fire, or loss footprint.", summary: "A documented historical earthquake included as a source-linked metadata record." },
+  { id: "guatemala-1976", name: "Guatemala earthquake", year: 1976, dateLabel: "1976", country: "Guatemala", center: [-89.1, 15.3], hazard: "earthquake", setting: "inland", onset: "rapid", drivers: ["ground"], secondary: ["landslide"], sourceFamily: "usgs", sourceLabel: SOURCES.usgs.label, sourceUrl: SOURCES.usgs.url, coordinateNote: "Reference epicentral region; not a shaking or impact footprint.", summary: "A documented earthquake in the source-linked historical catalogue." },
+  { id: "mount-st-helens-1980", name: "Mount St. Helens eruption", year: 1980, dateLabel: "1980", country: "United States", center: [-122.18, 46.2], hazard: "volcano", setting: "mountain", onset: "rapid", drivers: ["ash"], secondary: ["lahar", "landslide"], sourceFamily: "official_other", sourceLabel: SOURCES.officialVolcano.label, sourceUrl: SOURCES.officialVolcano.url, coordinateNote: "Reference volcano location; not an ashfall, blast, lahar, or exclusion-zone footprint.", summary: "A documented volcanic eruption represented by a reference location and categorical context." },
+  { id: "bangladesh-flood-1988", name: "Bangladesh floods", year: 1988, dateLabel: "1988", country: "Bangladesh", center: [90.4, 23.8], hazard: "flood", setting: "inland", onset: "seasonal", drivers: ["water"], secondary: [], sourceFamily: "noaa", sourceLabel: SOURCES.noaaClimate.label, sourceUrl: SOURCES.noaaClimate.url, coordinateNote: "Reference central Bangladesh location; not an inundation or depth footprint.", summary: "A documented flood season used only for source-linked metadata comparison." },
+  { id: "nargis-2008", name: "Cyclone Nargis", year: 2008, dateLabel: "2008", country: "Myanmar", center: [96.1, 16.0], hazard: "cyclone", setting: "coastal", onset: "multi_day", drivers: ["wind", "water"], secondary: ["surge"], sourceFamily: "noaa", sourceLabel: SOURCES.noaaClimate.label, sourceUrl: SOURCES.noaaClimate.url, coordinateNote: "Reference Myanmar coastal location; not a storm track, wind field, surge, or loss footprint.", summary: "A documented cyclone represented for metadata navigation, not historical hazard reconstruction." },
   { id: "valdivia-1960", name: "Valdivia earthquake", year: 1960, dateLabel: "1960", country: "Chile", center: [-73.05, -38.24], hazard: "earthquake", setting: "coastal", onset: "rapid", drivers: ["ground"], secondary: ["tsunami", "landslide"], sourceFamily: "usgs", sourceLabel: SOURCES.usgs.label, sourceUrl: SOURCES.usgs.url, coordinateNote: "Reference location in southern Chile; not a rupture footprint.", summary: "A documented great earthquake used here only as a historical metadata reference." },
   { id: "alaska-1964", name: "Alaska earthquake", year: 1964, dateLabel: "1964", country: "United States", center: [-147.65, 61.02], hazard: "earthquake", setting: "coastal", onset: "rapid", drivers: ["ground"], secondary: ["tsunami", "landslide"], sourceFamily: "usgs", sourceLabel: SOURCES.usgs.label, sourceUrl: SOURCES.usgs.url, coordinateNote: "Reference location in south-central Alaska; not a rupture footprint.", summary: "A documented Alaska earthquake selected for the source-linked historical catalogue." },
   { id: "tangshan-1976", name: "Tangshan earthquake", year: 1976, dateLabel: "1976", country: "China", center: [118.18, 39.63], hazard: "earthquake", setting: "inland", onset: "rapid", drivers: ["ground"], secondary: [], sourceFamily: "usgs", sourceLabel: SOURCES.usgs.label, sourceUrl: SOURCES.usgs.url, coordinateNote: "Reference location near Tangshan; not an impact boundary.", summary: "A documented inland earthquake in the historical metadata catalogue." },
@@ -136,6 +143,7 @@ export function traitVector(event: HistoricalGenomeEvent): number[] {
     if (trait.id === `setting_${event.setting}`) return 1;
     if (trait.id === `onset_${event.onset}`) return 1;
     if (trait.id.startsWith("driver_") && event.drivers.includes(trait.id.replace("driver_", "") as GenomeDriver)) return 1;
+    if (trait.id === "secondary_compound") return event.secondary.length >= 2 ? 1 : 0;
     if (trait.id.startsWith("secondary_") && event.secondary.includes(trait.id.replace("secondary_", "") as GenomeSecondary)) return 1;
     if (trait.id === `archive_${event.sourceFamily}`) return 1;
     return 0;

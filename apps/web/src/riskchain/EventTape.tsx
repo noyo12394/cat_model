@@ -22,7 +22,7 @@ export function EventTape({ events, onSelect }: Props) {
   // The tape is an ambient recency signal rather than a catalog. Keep the full
   // official response on the map and in the event list, but bound this moving
   // strip so a large feed does not create hundreds of focusable controls.
-  const tapeSource = events.slice(0, 80);
+  const tapeSource = events.slice(0, 36);
   const tapeEvents = [...tapeSource, ...tapeSource];
 
   return <section className="event-tape" aria-label="Live GDACS event tape">

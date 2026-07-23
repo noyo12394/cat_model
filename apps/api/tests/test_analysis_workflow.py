@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from app.api.v1 import analysis
 from app.core.config import Settings
 from app.schemas.analysis import AnalysisLocation, AnalysisRunRequest, AnalysisTotals, SourceRecord
-from app.services.cat.screening import point_in_geometry
+from app.services.cat.screening import _screening_budget, point_in_geometry
 
 LOCATION=AnalysisLocation(place_id="bethlehem-pa",name="Bethlehem, Pennsylvania",center=(-75.3705,40.6259),bbox=(-75.40,40.60,-75.34,40.65),state="Pennsylvania",state_fips="42",county="Lehigh County",county_fips="42077",tract="Census Tract 65",tract_geoid="42077006500")
 
@@ -15,6 +15,14 @@ def test_hypothetical_run_requires_location_and_return_period():
 def test_point_intersection_is_not_a_bbox_touch_test():
     triangle={"type":"Polygon","coordinates":[[[0,0],[4,0],[0,4],[0,0]]]}
     assert point_in_geometry((1,1),triangle); assert not point_in_geometry((3.5,3.5),triangle)
+
+def test_oversized_official_footprint_is_kept_but_not_sent_to_nsi():
+    # This is a request-safety guard, not an intensity or area calculation.
+    # A broad forecast geometry must return a prompt hazard-only screen rather
+    # than timing out or replacing the missing exposure response with a value.
+    features=[{"type":"Feature","geometry":{"type":"Polygon","coordinates":[[[-80,20],[-70,20],[-70,30],[-80,30],[-80,20]]]},"properties":{}}]
+    within_budget, reason=_screening_budget(features)
+    assert not within_budget and reason and "broad" in reason
 
 @pytest.mark.asyncio
 async def test_zone_membership_returns_screening_and_never_loss(monkeypatch):

@@ -90,8 +90,8 @@ vulnerability/loss functions remain unavailable.
 
 The **Genome Lab** is an optional visual-navigation layer in the web workspace.
 Its 3D atlas uses the live GDACS event centres already retrieved by the app and
-a separate, source-linked catalogue of 24 historical event metadata records.
-The accompanying 29-trait helix and nearest-neighbour comparison are
+a separate, source-linked catalogue of 30 historical event metadata records.
+The accompanying 30-trait helix and nearest-neighbour comparison are
 deterministic catalogue navigation only—not a loss model, analogue engine,
 fragility curve, forecast, event footprint, or severity score. See
 [`docs/CATASTROPHE_GENOME.md`](docs/CATASTROPHE_GENOME.md) for the full

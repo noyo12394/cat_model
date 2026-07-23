@@ -8,11 +8,40 @@ from app.schemas.analysis import AnalysisLocation, AnalysisTotals, SourceRecord
 
 FEMA_NFHL_URL = "https://hazards.fema.gov/arcgis/rest/services/public/NFHL/MapServer/28/query"
 NSI_URL = "https://nsi.sec.usace.army.mil/nsiapi/structures"
+# The NSI endpoint accepts polygons, but a national-scale forecast wind field
+# can imply an unbounded number of candidate structures.  Keep the interactive
+# workflow responsive by declining that *exposure* request before it becomes a
+# timeout.  The authoritative hazard geometry is still returned by the caller;
+# this only prevents an unsafe aggregation request and never substitutes data.
+MAX_NSI_SCREENING_VERTICES = 5_000
+MAX_NSI_SCREENING_BBOX_DEGREES_SQUARED = 4.0
 
 def _rings(geometry: dict[str, Any]) -> list[list[list[float]]]:
     if geometry.get("type") == "Polygon": return geometry.get("coordinates", [])
     if geometry.get("type") == "MultiPolygon": return [ring for polygon in geometry.get("coordinates", []) for ring in polygon]
     return []
+
+def _screening_budget(features: list[dict[str, Any]]) -> tuple[bool, str | None]:
+    """Return whether an official geometry is safe for one NSI polygon query.
+
+    This is intentionally a request-budget check, not an estimate of a hazard
+    area.  It keeps large forecast products from blocking the UI and preserves
+    the distinction between a published footprint and an exposure calculation.
+    """
+    positions = [position for feature in features for ring in _rings(feature.get("geometry") or {}) for position in ring if len(position) >= 2]
+    if not positions:
+        return False, "The official product did not contain polygon coordinates usable by the exposure service."
+    if len(positions) > MAX_NSI_SCREENING_VERTICES:
+        return False, f"The official footprint has {len(positions):,} vertices, above the interactive screening request limit."
+    try:
+        longitudes = [float(position[0]) for position in positions]
+        latitudes = [float(position[1]) for position in positions]
+    except (TypeError, ValueError):
+        return False, "The official product contained coordinates that could not be validated for the exposure service."
+    bbox_area = (max(longitudes) - min(longitudes)) * (max(latitudes) - min(latitudes))
+    if bbox_area > MAX_NSI_SCREENING_BBOX_DEGREES_SQUARED:
+        return False, "The official footprint covers too broad an area for one interactive NSI screening request."
+    return True, None
 
 def _inside_ring(point: tuple[float, float], ring: list[list[float]]) -> bool:
     x, y, inside, j = point[0], point[1], False, len(ring) - 1
@@ -106,20 +135,24 @@ async def run_polygon_exposure_screening(footprints: list[dict[str, Any]]) -> di
         if feature.get("geometry")
     ]
     if hazard_features:
-        try:
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                features = await _query_nsi_polygons(client, hazard_features)
-            if len(features) > 10_000:
-                raise ValueError("NSI response exceeded safe limit")
-            unique: dict[str, dict[str, Any]] = {}
-            for feature in features:
-                props = feature.get("properties", {})
-                key = str(props.get("fd_id") or props.get("bid") or feature.get("id") or feature.get("geometry"))
-                unique[key] = feature
-            structures = list(unique.values())
-            sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="loaded", note=f"{len(structures)} points intersected the supplied official hazard polygons."))
-        except (httpx.HTTPError, ValueError, TypeError, KeyError):
-            sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="unavailable", note="Request failed or exceeded the safe screening limit; no substitute exposure values were used."))
+        within_budget, budget_reason = _screening_budget(hazard_features)
+        if not within_budget:
+            sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="not_applicable", note=f"Exposure aggregation was not requested. {budget_reason} Select a smaller area of interest before running an exposure screen."))
+        else:
+            try:
+                async with httpx.AsyncClient(timeout=25.0) as client:
+                    features = await _query_nsi_polygons(client, hazard_features)
+                if len(features) > 10_000:
+                    raise ValueError("NSI response exceeded safe limit")
+                unique: dict[str, dict[str, Any]] = {}
+                for feature in features:
+                    props = feature.get("properties", {})
+                    key = str(props.get("fd_id") or props.get("bid") or feature.get("id") or feature.get("geometry"))
+                    unique[key] = feature
+                structures = list(unique.values())
+                sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="loaded", note=f"{len(structures)} points intersected the supplied official hazard polygons."))
+            except (httpx.HTTPError, ValueError, TypeError, KeyError):
+                sources.append(SourceRecord(dataset="National Structure Inventory 2026 Base", provider="USACE", url=NSI_URL, version="2026 Base", retrieved_at=retrieved_at, status="unavailable", note="Request failed or exceeded the safe screening limit; no substitute exposure values were used."))
 
     def vals(*keys: str) -> list[float]:
         output: list[float] = []
@@ -135,4 +168,7 @@ async def run_polygon_exposure_screening(footprints: list[dict[str, Any]]) -> di
     population_values = vals("pop2amu65", "pop2pmu65")
     loaded = any(source.dataset.startswith("National Structure") and source.status == "loaded" for source in sources)
     totals = AnalysisTotals(structures=len(structures) if loaded else None, population=round(sum(population_values)) if population_values else None, structure_value_usd=sum(structure_values) if structure_values else None, contents_value_usd=sum(contents_values) if contents_values else None, valid_assets=0, excluded_assets=len(structures))
-    return {"sources": sources, "totals": totals, "limitations": ["Hazard-polygon membership is exposure screening only. Asset-level wind intensity and compatible vulnerability are not available, so no damage or dollar loss is calculated.", "NSI is a modelled national inventory for screening, not verified structure-level appraisal."]}
+    limitations = ["Hazard-polygon membership is exposure screening only. Asset-level wind intensity and compatible vulnerability are not available, so no damage or dollar loss is calculated.", "NSI is a modelled national inventory for screening, not verified structure-level appraisal."]
+    if any(source.status == "not_applicable" for source in sources):
+        limitations.append("The official footprint was preserved, but its geographic extent exceeded the bounded interactive exposure-screening request. No exposure count was inferred.")
+    return {"sources": sources, "totals": totals, "limitations": limitations}
