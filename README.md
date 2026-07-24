@@ -61,7 +61,8 @@ The Model page separates Live Event, Historical Event, Hypothetical /
 Return-Period, and Sample Demonstration workflows. The source-backed path
 integrates Photon/OpenStreetMap and Nominatim geocoding, U.S. Census containing
 geographies, NHC active storms, USGS FDSN earthquakes and ShakeMap contours,
-FEMA effective NFHL flood zones, and USACE NSI 2026 Base exposure.
+NWS active flood-alert polygons, FEMA effective NFHL flood zones, and USACE
+NSI 2026 Base exposure.
 
 FEMA zone membership does not provide building-level flood depth. Those runs
 therefore report exposure only and never calculate dollar damage. The bundled
@@ -82,9 +83,10 @@ keys, and database credentials server-side unless a variable is explicitly a
 browser-restricted `NEXT_PUBLIC_*` map key.
 
 Known coverage gaps are stated in the UI: historical NHC best-track search,
-wildfire perimeter analysis, live flood inundation, ACS profiles, ShakeMap
-tract aggregation, durable cross-instance run storage, and production
-vulnerability/loss functions remain unavailable.
+historical flood/fire footprint adapters, live flood inundation (NWS alert
+areas are not inundation), ACS profiles, ShakeMap tract aggregation, durable
+cross-instance run storage, and production vulnerability/loss functions remain
+unavailable.
 
 ## Catastrophe Genome Lab
 

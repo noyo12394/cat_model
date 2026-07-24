@@ -7,6 +7,11 @@ what it's used for, what configuration unlocks the live call, and what happens w
 
 - **Used for:** watches/warnings/advisories (Alert records).
 - **Adapter:** `adapters/nws.py`. Endpoint: `GET {NWS_BASE_URL}/alerts/active?area=<state>`.
+- **CAT screening:** `services/cat/hazard_providers.py` also queries the
+  active `Flood Warning`, `Flash Flood Warning`, and `Flood Watch` feeds.
+  Only alerts with a published polygon can be selected for an NSI exposure
+  screen. The polygon is an alert area—not a flood extent or depth layer—so no
+  damage or loss is calculated.
 - **Auth:** none required; a descriptive `User-Agent` is sent.
 - **License:** U.S. Government work, public domain.
 - **Without config / on failure:** falls back to the seeded Bethlehem flash-flood
