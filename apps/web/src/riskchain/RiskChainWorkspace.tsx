@@ -2,7 +2,7 @@
 
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, BarChart3, BookOpen, Bot, CheckCircle2, ChevronDown, Database, Dna,
+  Activity, AlertTriangle, BarChart3, BookOpen, Bot, CheckCircle2, ChevronDown, ClipboardCheck, Database, Dna,
   Download, ExternalLink, FlaskConical, Globe2, GraduationCap, Layers,
   Menu, Moon, Newspaper, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
   UserRound, X,
@@ -22,8 +22,9 @@ import { GeoAgentPanel, type GeoAgentLayerState } from "./GeoAgentPanel";
 import { WorkspaceMission } from "./WorkspaceMission";
 import { EventGenome } from "./EventGenome";
 import { CatastropheGenomeLab } from "./genome/CatastropheGenomeLab";
+import { CatModelingActivity } from "./CatModelingActivity";
 
-type View = "explore" | "model" | "results" | "live" | "news" | "learn" | "research" | "genome";
+type View = "explore" | "model" | "results" | "live" | "news" | "activity" | "learn" | "research" | "genome";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account" | "genome";
 
 const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
@@ -33,6 +34,7 @@ const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
   { id: "live", label: "Live", icon: Radio },
   { id: "news", label: "News", icon: Newspaper },
   { id: "genome", label: "Genome Lab", icon: Dna },
+  { id: "activity", label: "FIRE Lab", icon: ClipboardCheck },
   { id: "learn", label: "Learn CAT", icon: GraduationCap },
   { id: "research", label: "Research", icon: BookOpen },
 ];
@@ -74,8 +76,8 @@ function StatusBadge({ children, tone = "neutral" }: { children: React.ReactNode
   return <span className={`status-badge ${tone}`}>{children}</span>;
 }
 
-export function RiskChainWorkspace() {
-  const [view, setView] = useState<View>("explore");
+export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: View }) {
+  const [view, setView] = useState<View>(initialView);
   const [panel, setPanel] = useState<Panel>("none");
   const [operationsMode, setOperationsMode] = useState(false);
   const [professionalMode, setProfessionalMode] = useState(false);
@@ -233,7 +235,7 @@ export function RiskChainWorkspace() {
       if (!selection) setScope("global");
       if (hazard === "all" || hazard === "cyclone" || hazard === "drought" || hazard === "volcano") setHazard("flood");
     }
-    if (next === "live" || next === "news" || next === "explore" || next === "genome") setScope("global");
+    if (next === "live" || next === "news" || next === "explore" || next === "genome" || next === "activity") setScope("global");
   }
 
   function openModelReadiness() {
@@ -562,17 +564,30 @@ export function RiskChainWorkspace() {
           onViewportChange={setMapViewport}
         />
 
-        {view !== "genome" && <div className="map-toolbar">
+        {view !== "genome" && view !== "activity" && <div className="map-toolbar">
           <button className={panel === "layers" ? "active" : ""} onClick={() => setPanel(panel === "layers" ? "none" : "layers")}><Layers size={17} /> Layers <ChevronDown size={14} /></button>
           <button onClick={() => setScope(scope === "global" ? "local" : "global")}><Globe2 size={17} /> {scope === "global" ? "Global" : "Bethlehem"}</button>
           <button onClick={() => setPanel(panel === "sources" ? "none" : "sources")}><Database size={17} /> Sources</button>
         </div>}
 
-        {view !== "genome" && <button className="workspace-about" onClick={() => setPanel("roadmap")}>About & roadmap</button>}
+        {view !== "genome" && view !== "activity" && <button className="workspace-about" onClick={() => setPanel("roadmap")}>About & roadmap</button>}
 
         {(view === "explore" || view === "live") && <EventTape events={geoLayers.events ? visibleEvents : []} onSelect={onSelect} />}
 
         {view === "genome" && <CatastropheGenomeLab liveEvents={events} onSelectLive={(next) => { onSelect(next); setView("live"); }} />}
+
+        {view === "activity" && <CatModelingActivity
+          events={events}
+          eventsResponse={eventsResponse}
+          curves={curves}
+          onInspectEvent={(event) => {
+            onSelect({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 6 });
+            setView("live");
+          }}
+          onOpenLive={() => chooseView("live")}
+          onRunDemo={startGuidedDemo}
+          onOpenLesson={(lessonId) => { setView("learn"); void openLesson(lessonId); }}
+        />}
 
         {view === "explore" && <section className="floating-card intro-card">
           <StatusBadge tone="live">Map-first workspace</StatusBadge>
