@@ -1,4 +1,4 @@
-from datetime import timezone
+from datetime import date, timezone
 
 import pytest
 
@@ -57,8 +57,31 @@ async def test_gdacs_adapter_pages_and_deduplicates(monkeypatch):
         }
 
     monkeypatch.setattr("app.adapters.gdacs.safe_get_json", fake_get)
-    monkeypatch.setattr("app.adapters.gdacs._cache", None)
-    response = await fetch_global_events(Settings(), force=True)
+    monkeypatch.setattr("app.adapters.gdacs._cache", {})
+    response = await fetch_global_events(Settings(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 31), force=True)
     assert len(response.items) == 1
     assert response.items[0].event_id == "EQ-101"
     assert "5 GDACS page(s)" in response.note
+    assert response.request_params["fromDate"] == "2026-07-01"
+    assert response.request_params["toDate"] == "2026-07-31"
+
+
+@pytest.mark.asyncio
+async def test_gdacs_adapter_serves_exact_cached_snapshot_when_refresh_fails(monkeypatch):
+    calls = 0
+
+    async def fake_get(_url, *, params):
+        nonlocal calls
+        calls += 1
+        if calls > 5:
+            return None
+        return {"features": []}
+
+    monkeypatch.setattr("app.adapters.gdacs.safe_get_json", fake_get)
+    monkeypatch.setattr("app.adapters.gdacs._cache", {})
+    settings = Settings()
+    first = await fetch_global_events(settings, from_date=date(2026, 8, 1), to_date=date(2026, 8, 26), force=True)
+    stale = await fetch_global_events(settings, from_date=date(2026, 8, 1), to_date=date(2026, 8, 26), force=True)
+    assert first.status.value == "live"
+    assert stale.status.value == "stale"
+    assert "cached snapshot" in (stale.note or "")

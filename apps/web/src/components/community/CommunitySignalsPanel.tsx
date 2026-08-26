@@ -13,7 +13,7 @@ export function CommunitySignalsPanel() {
   const selectGlobalEvent = useAppStore((state) => state.selectGlobalEvent);
   const flyTo = useAppStore((state) => state.flyTo);
   const setMapScope = useAppStore((state) => state.setMapScope);
-  const eventsQuery = useQuery({ queryKey: ["global-events"], queryFn: api.globalEvents, staleTime: 300_000 });
+  const eventsQuery = useQuery({ queryKey: ["global-events"], queryFn: () => api.globalEvents(), staleTime: 300_000 });
   const selectedEvent = useMemo(
     () => (eventsQuery.data?.events ?? []).find((event) => event.event_id === selectedGlobalEventId) ?? null,
     [eventsQuery.data?.events, selectedGlobalEventId],

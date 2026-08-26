@@ -338,6 +338,15 @@ export interface GlobalEventsResponse {
   possibly_truncated: boolean;
   notice: string;
   error?: string | null;
+  feed_state: "feed_ok" | "feed_ok_no_events" | "feed_degraded" | "feed_error";
+  requested_window: string;
+  effective_window: string;
+  window_start?: string | null;
+  window_end?: string | null;
+  auto_widened: boolean;
+  last_successful_poll_at?: string | null;
+  query_endpoint?: string | null;
+  query_parameters: Record<string, string | number>;
 }
 
 export interface GlobalWatchItem {

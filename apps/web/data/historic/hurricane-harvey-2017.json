@@ -1,0 +1,15 @@
+{
+  "slug": "hurricane-harvey-2017", "name": "Hurricane Harvey inland flooding", "hazard": "inland flood", "hazard_code": "FL", "country": "USA", "region": "Southeastern Texas and southwestern Louisiana", "start_date": "2017-08-25", "end_date": "2017-09-01", "center": [-95.37, 29.76],
+  "headline_loss": "$90–160 billion total damage (90% interval, nominal 2017 USD)",
+  "insured_loss": { "display": "not available from source", "currency": "USD", "loss_year": 2017, "inflation_basis": "nominal", "source_ids": [] },
+  "economic_loss": { "display": "$90–160 billion", "currency": "USD", "loss_year": 2017, "inflation_basis": "nominal 2017 USD; NOAA 90% confidence interval", "source_ids": ["nhc-harvey"] },
+  "datasets": [
+    { "slug": "inundation-extent", "name": "Flood inundation extent", "provenance": "observed", "resolution": "19 USGS inundation maps and depth rasters", "vintage": "2018 data release", "source_id": "usgs-harvey-data", "unit": "feet / mapped polygon", "denominator": "mapped basin or coastal area", "geometry_status": "reference_only" },
+    { "slug": "nfip-claims", "name": "NFIP claims records", "provenance": "officially reported", "resolution": "OpenFEMA redacted claim records", "vintage": "current OpenFEMA release", "source_id": "openfema-claims", "unit": "nominal USD", "denominator": "paid claim", "geometry_status": "not_available" }
+  ],
+  "sources": [
+    { "id": "usgs-harvey-data", "name": "USGS Hurricane Harvey flood-inundation data release", "url": "https://www.usgs.gov/data/data-used-characterize-peak-streamflows-and-flood-inundation-resulting-hurricane-harvey", "retrieved_at": "2026-08-26", "license": "USGS public domain", "panels": ["map", "density", "download"] },
+    { "id": "nhc-harvey", "name": "NHC Tropical Cyclone Report: Hurricane Harvey", "url": "https://www.nhc.noaa.gov/data/tcr/AL092017_Harvey.pdf", "retrieved_at": "2026-08-26", "license": "U.S. Government work", "panels": ["loss", "overview"] },
+    { "id": "openfema-claims", "name": "OpenFEMA FIMA NFIP Redacted Claims", "url": "https://www.fema.gov/openfema-data-page/fima-nfip-redacted-claims-v2", "retrieved_at": "2026-08-26", "license": "OpenFEMA terms and privacy redaction apply", "panels": ["density", "download", "sources"] }
+  ]
+}

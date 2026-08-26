@@ -1,0 +1,15 @@
+{
+  "slug": "camp-fire-2018", "name": "Camp Fire", "hazard": "wildfire", "hazard_code": "WF", "country": "USA", "region": "Butte County, California", "start_date": "2018-11-08", "end_date": "2018-11-25", "center": [-121.4347, 39.8134],
+  "headline_loss": "Total and insured loss not available from the selected official sources",
+  "insured_loss": { "display": "not available from source", "currency": "USD", "loss_year": 2018, "inflation_basis": "not available", "source_ids": [] },
+  "economic_loss": { "display": "not available from source", "currency": "USD", "loss_year": 2018, "inflation_basis": "not available", "source_ids": [] },
+  "datasets": [
+    { "slug": "burn-perimeter", "name": "Final incident perimeter", "provenance": "officially reported", "resolution": "153,336-acre incident perimeter reference", "vintage": "2024-09-26 page update", "source_id": "calfire-camp", "unit": "acres", "denominator": "incident perimeter", "geometry_status": "reference_only" },
+    { "slug": "burn-severity", "name": "MTBS burn severity", "provenance": "observed", "resolution": "Landsat-derived thematic burn severity", "vintage": "MTBS completed-fire product", "source_id": "mtbs", "unit": "thematic burn-severity class", "denominator": "30 m raster cell", "geometry_status": "reference_only" }
+  ],
+  "sources": [
+    { "id": "calfire-camp", "name": "CAL FIRE Camp Fire incident", "url": "https://www.fire.ca.gov/incidents/2018/11/8/camp-fire", "retrieved_at": "2026-08-26", "license": "CAL FIRE terms; incident data is public information", "panels": ["overview", "map"] },
+    { "id": "mtbs", "name": "Monitoring Trends in Burn Severity", "url": "https://www.mtbs.gov/", "retrieved_at": "2026-08-26", "license": "U.S. Government public data; review product metadata", "panels": ["map", "density"] },
+    { "id": "nifc", "name": "NIFC Open Data wildfire perimeters", "url": "https://data-nifc.opendata.arcgis.com/", "retrieved_at": "2026-08-26", "license": "NIFC Open Data terms", "panels": ["map", "download", "sources"] }
+  ]
+}

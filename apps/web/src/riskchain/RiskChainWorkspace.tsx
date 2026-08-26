@@ -7,7 +7,8 @@ import {
   Menu, Moon, Newspaper, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
   UserRound, X,
 } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import Link from "next/link";
+import { api, ApiError, type GlobalEventQuery, type LiveWindow } from "@/lib/api";
 import type {
   AnalysisLocation, AnalysisRunResult, CatModelRunResult, DataCoverageItem, GlobalEventsResponse,
   LearnLesson, LearnLessonSummary, NewsArticlesResponse, ResearchSearchResponse, RoadmapResponse,
@@ -27,13 +28,17 @@ import { CatModelingActivity } from "./CatModelingActivity";
 type View = "explore" | "model" | "results" | "live" | "news" | "activity" | "learn" | "research" | "genome";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account" | "genome";
 
+const GENOME_LAB_ENABLED = process.env.NEXT_PUBLIC_FF_GENOME_LAB === "true";
+const LIVE_ROLLING_ENABLED = process.env.NEXT_PUBLIC_FF_LIVE_ROLLING !== "false";
+const HISTORIC_EVENTS_ENABLED = process.env.NEXT_PUBLIC_FF_HISTORIC_EVENTS !== "false";
+
 const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
   { id: "explore", label: "Explore", icon: Globe2 },
   { id: "model", label: "Model", icon: FlaskConical },
   { id: "results", label: "Results", icon: BarChart3 },
   { id: "live", label: "Live", icon: Radio },
   { id: "news", label: "News", icon: Newspaper },
-  { id: "genome", label: "Genome Lab", icon: Dna },
+  ...(GENOME_LAB_ENABLED ? [{ id: "genome" as View, label: "Genome Lab", icon: Dna }] : []),
   { id: "activity", label: "FIRE Lab", icon: ClipboardCheck },
   { id: "learn", label: "Learn CAT", icon: GraduationCap },
   { id: "research", label: "Research", icon: BookOpen },
@@ -61,6 +66,11 @@ const NEWS_FILTERS: { id: "all" | "flood" | "wildfire" | "earthquake" | "storm" 
 ];
 
 type WorkspaceUser = { name: string; email: string };
+
+function initialLiveParam(name: string, fallback: string) {
+  if (typeof window === "undefined") return fallback;
+  return new URLSearchParams(window.location.search).get(name) || fallback;
+}
 
 function dateTime(value?: string | null) {
   if (!value) return "Not reported";
@@ -117,7 +127,19 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   const [research, setResearch] = useState<ResearchSearchResponse | null>(null);
   const [aiQuestion, setAiQuestion] = useState("Explain the largest uncertainty in this analysis.");
   const [aiAnswer, setAiAnswer] = useState<CopilotAnswer | null>(null);
-  const [currentOnly, setCurrentOnly] = useState(true);
+  const [liveWindow, setLiveWindow] = useState<LiveWindow>(() => {
+    const value = initialLiveParam("window", "30d");
+    return (["24h", "7d", "30d", "90d", "ytd"] as string[]).includes(value) ? value as LiveWindow : "30d";
+  });
+  const [liveHazard, setLiveHazard] = useState(() => initialLiveParam("hazard", "all"));
+  const [liveAlert, setLiveAlert] = useState(() => initialLiveParam("alert", "all"));
+  const [liveRegion, setLiveRegion] = useState(() => initialLiveParam("region", ""));
+  const [liveSearchDraft, setLiveSearchDraft] = useState(() => initialLiveParam("q", ""));
+  const [liveSearch, setLiveSearch] = useState(() => initialLiveParam("q", ""));
+  const [liveStartDate, setLiveStartDate] = useState(() => initialLiveParam("start_date", ""));
+  const [liveEndDate, setLiveEndDate] = useState(() => initialLiveParam("end_date", ""));
+  const [showLiveQuery, setShowLiveQuery] = useState(false);
+  const [liveLoading, setLiveLoading] = useState(false);
   const [eventListLimit, setEventListLimit] = useState(12);
   const [user, setUser] = useState<WorkspaceUser | null>(() => {
     if (typeof window === "undefined") return null;
@@ -128,17 +150,53 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   const [accountEmail, setAccountEmail] = useState("");
 
   useEffect(() => {
-    void Promise.allSettled([api.globalEvents(), api.catDataCoverage(), api.learnLessons(), api.roadmap(), api.catVulnerabilityFunctions()]).then((results) => {
-      const [events, data, course, plan, vulnerability] = results;
-      if (events.status === "fulfilled") setEventsResponse(events.value);
+    void Promise.allSettled([api.catDataCoverage(), api.learnLessons(), api.roadmap(), api.catVulnerabilityFunctions()]).then((results) => {
+      const [data, course, plan, vulnerability] = results;
       if (data.status === "fulfilled") setCoverage(data.value);
       if (course.status === "fulfilled") setLessons(course.value);
       if (plan.status === "fulfilled") setRoadmap(plan.value);
       if (vulnerability.status === "fulfilled") setCurves(vulnerability.value);
     });
-    const refresh = window.setInterval(() => void api.globalEvents().then(setEventsResponse).catch(() => undefined), 300_000);
-    return () => window.clearInterval(refresh);
   }, []);
+
+  useEffect(() => {
+    const hazardCode = ({ flood: "FL", cyclone: "TC", earthquake: "EQ", wildfire: "WF", drought: "DR", volcano: "VO" } as Record<string, string>)[liveHazard];
+    const eventQuery: GlobalEventQuery = {
+      window: LIVE_ROLLING_ENABLED ? liveWindow : undefined,
+      hazard: LIVE_ROLLING_ENABLED ? hazardCode : undefined,
+      alert: LIVE_ROLLING_ENABLED ? liveAlert : undefined,
+      region: LIVE_ROLLING_ENABLED ? liveRegion : undefined,
+      q: LIVE_ROLLING_ENABLED ? liveSearch : undefined,
+      start_date: LIVE_ROLLING_ENABLED ? liveStartDate : undefined,
+      end_date: LIVE_ROLLING_ENABLED ? liveEndDate : undefined,
+    };
+    let cancelled = false;
+    const load = async () => {
+      setLiveLoading(true);
+      try {
+        const response = await api.globalEvents(eventQuery);
+        if (!cancelled) setEventsResponse(response);
+      } catch {
+        if (!cancelled) setNotice("The GDACS request failed. The last loaded snapshot remains visible where available.");
+      } finally {
+        if (!cancelled) setLiveLoading(false);
+      }
+    };
+    void load();
+    const refresh = window.setInterval(() => void load(), 300_000);
+    if (view === "live") {
+      const params = new URLSearchParams();
+      params.set("window", liveWindow);
+      if (liveHazard !== "all") params.set("hazard", liveHazard);
+      if (liveAlert !== "all") params.set("alert", liveAlert);
+      if (liveRegion) params.set("region", liveRegion);
+      if (liveSearch) params.set("q", liveSearch);
+      if (liveStartDate) params.set("start_date", liveStartDate);
+      if (liveEndDate) params.set("end_date", liveEndDate);
+      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    }
+    return () => { cancelled = true; window.clearInterval(refresh); };
+  }, [liveAlert, liveEndDate, liveHazard, liveRegion, liveSearch, liveStartDate, liveWindow, view]);
 
   useEffect(() => {
     if (view !== "news") return;
@@ -204,16 +262,16 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   const events = useMemo(() => eventsResponse?.events ?? [], [eventsResponse]);
   const selectedOfficialEvent = useMemo<GlobalEvent | null>(() => selection?.status === "Officially reported" ? events.find((event) => event.event_id === selection.id) ?? null : null, [events, selection]);
   const visibleEvents = useMemo(() => {
-    let filtered = currentOnly ? events.filter((event) => event.is_current) : events;
-    if (hazard === "flood") filtered = filtered.filter((event) => /^(fl|flood)$/i.test(event.event_type));
-    if (hazard === "earthquake") filtered = filtered.filter((event) => /^(eq|earthquake)$/i.test(event.event_type));
-    if (hazard === "wildfire") filtered = filtered.filter((event) => /^(wf|fire|wildfire)$/i.test(event.event_type));
-    if (hazard === "cyclone" || hazard === "wind") filtered = filtered.filter((event) => /^(tc|cyclone|storm|wind)$/i.test(event.event_type));
-    if (hazard === "drought") filtered = filtered.filter((event) => /^(dr|drought)$/i.test(event.event_type));
-    if (hazard === "volcano") filtered = filtered.filter((event) => /^(vo|volcano)$/i.test(event.event_type));
+    let filtered = events;
+    if (liveHazard === "flood") filtered = filtered.filter((event) => /^(fl|flood)$/i.test(event.event_type));
+    if (liveHazard === "earthquake") filtered = filtered.filter((event) => /^(eq|earthquake)$/i.test(event.event_type));
+    if (liveHazard === "wildfire") filtered = filtered.filter((event) => /^(wf|fire|wildfire)$/i.test(event.event_type));
+    if (liveHazard === "cyclone" || liveHazard === "wind") filtered = filtered.filter((event) => /^(tc|cyclone|storm|wind)$/i.test(event.event_type));
+    if (liveHazard === "drought") filtered = filtered.filter((event) => /^(dr|drought)$/i.test(event.event_type));
+    if (liveHazard === "volcano") filtered = filtered.filter((event) => /^(vo|volcano)$/i.test(event.event_type));
     const alertRank: Record<string, number> = { red: 3, orange: 2, green: 1 };
     return [...filtered].sort((a, b) => (alertRank[b.alert_level] ?? 0) - (alertRank[a.alert_level] ?? 0) || new Date(b.modified_at).getTime() - new Date(a.modified_at).getTime());
-  }, [currentOnly, events, hazard]);
+  }, [events, liveHazard]);
 
   const onSelect = useCallback((next: MapSelection) => {
     setSelection(next);
@@ -228,6 +286,7 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   }
 
   function chooseView(next: View) {
+    if (next === "genome" && !GENOME_LAB_ENABLED) return;
     setView(next);
     setMobileNav(false);
     setPanel("none");
@@ -235,7 +294,7 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
       if (!selection) setScope("global");
       if (hazard === "all" || hazard === "cyclone" || hazard === "drought" || hazard === "volcano") setHazard("flood");
     }
-    if (next === "live" || next === "news" || next === "explore" || next === "genome" || next === "activity") setScope("global");
+    if (next === "live" || next === "news" || next === "explore" || (next === "genome" && GENOME_LAB_ENABLED) || next === "activity") setScope("global");
   }
 
   function openModelReadiness() {
@@ -246,6 +305,7 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   }
 
   function openEventGenome() {
+    if (!GENOME_LAB_ENABLED) return;
     if (!selectedOfficialEvent) {
       setNotice("Select an official event first. Event signatures only use source-backed event records.");
       return;
@@ -262,10 +322,11 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   }
 
   async function refreshEvents() {
-    setLoading(true);
-    try { setEventsResponse(await api.refreshGlobalEvents()); }
+    const hazardCode = ({ flood: "FL", cyclone: "TC", earthquake: "EQ", wildfire: "WF", drought: "DR", volcano: "VO" } as Record<string, string>)[liveHazard];
+    setLiveLoading(true);
+    try { setEventsResponse(await api.refreshGlobalEvents({ window: liveWindow, hazard: hazardCode, alert: liveAlert, region: liveRegion, q: liveSearch, start_date: liveStartDate, end_date: liveEndDate })); }
     catch { setNotice("The official GDACS feed could not be refreshed. Existing events were not relabelled as current."); }
-    finally { setLoading(false); }
+    finally { setLiveLoading(false); }
   }
 
   async function refreshNews() {
@@ -574,7 +635,7 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
 
         {(view === "explore" || view === "live") && <EventTape events={geoLayers.events ? visibleEvents : []} onSelect={onSelect} />}
 
-        {view === "genome" && <CatastropheGenomeLab liveEvents={events} onSelectLive={(next) => { onSelect(next); setView("live"); }} />}
+        {GENOME_LAB_ENABLED && view === "genome" && <CatastropheGenomeLab liveEvents={events} onSelectLive={(next) => { onSelect(next); setView("live"); }} />}
 
         {view === "activity" && <CatModelingActivity
           events={events}
@@ -654,15 +715,26 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
         </section>}
 
         {view === "live" && !selection && <section className="floating-card live-card">
-          <div className="card-heading"><div><span className="eyebrow">Official event picture</span><h2>Major disasters now</h2></div><div className="live-head-actions"><StatusBadge tone={eventsResponse?.data_status === "live" ? "live" : "warning"}>{eventsResponse?.data_status ?? "loading"}</StatusBadge><button className="icon-button" onClick={() => void refreshEvents()} aria-label="Refresh official events"><RefreshCw size={15} /></button></div></div>
+          <div className="live-mode-toggle" aria-label="Event archive mode"><button className="active" type="button">Live</button>{HISTORIC_EVENTS_ENABLED && <Link href="/historic">Historic</Link>}</div>
+          <div className="card-heading"><div><span className="eyebrow">Official event picture</span><h2>Recent GDACS events</h2></div><div className="live-head-actions"><StatusBadge tone={eventsResponse?.feed_state === "feed_ok" ? "live" : "warning"}>{liveLoading ? "loading" : eventsResponse?.feed_state?.replaceAll("_", " ") ?? "checking"}</StatusBadge><button className="icon-button" onClick={() => void refreshEvents()} aria-label="Refresh official events" disabled={liveLoading}><RefreshCw size={15} /></button></div></div>
+          {LIVE_ROLLING_ENABLED && eventsResponse?.auto_widened && <p className="live-widen-notice"><AlertTriangle size={13} /> No events matched {eventsResponse.requested_window}; widened automatically to {eventsResponse.effective_window}.</p>}
+          {LIVE_ROLLING_ENABLED && <div className="live-window-tabs" aria-label="GDACS time window">{([['24h','24h'],['7d','7d'],['30d','30d'],['90d','90d'],['ytd','Year to date (2026)']] as [LiveWindow,string][]).map(([value,label]) => <button type="button" key={value} className={liveWindow === value ? "active" : ""} onClick={() => { setLiveWindow(value); setLiveStartDate(""); setLiveEndDate(""); setEventListLimit(12); }}>{label}</button>)}</div>}
           <div className="live-stats"><div><strong>{eventsResponse?.counts.total ?? "—"}</strong><span>events</span></div><div><strong>{eventsResponse?.counts.red ?? "—"}</strong><span>red</span></div><div><strong>{eventsResponse?.counts.orange ?? "—"}</strong><span>orange</span></div></div>
-          <div className="live-freshness"><span><Database size={13} /> GDACS MHEWS API</span><span>Retrieved {dateTime(eventsResponse?.fetched_at)}</span><span className={eventsResponse?.stale ? "stale" : "fresh"}>{eventsResponse?.stale ? "Source may be stale" : "Freshness checked"}</span></div>
-          <div className="live-controls"><label><input type="checkbox" checked={currentOnly} onChange={(event) => { setCurrentOnly(event.target.checked); setEventListLimit(12); }} /> Current only</label><span>{Math.min(eventListLimit, visibleEvents.length)} of {visibleEvents.length} listed · map shows all</span></div>
-          <div className="hazard-filter">{LIVE_FILTERS.map((item) => <button key={item.id} className={hazard === item.id ? "active" : ""} onClick={() => { setHazard(item.id); setEventListLimit(12); }}>{item.label}</button>)}</div>
-          <div className="event-list">{visibleEvents.slice(0, eventListLimit).map((event) => <button key={event.event_id} onClick={() => onSelect({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 7 })}><i className={event.alert_level} /><span><strong>{event.name}</strong><small>{event.severity_text} · updated {dateTime(event.modified_at)}</small></span><ExternalLink size={15} /></button>)}</div>
+          <div className="live-freshness"><span><Database size={13} /> GDACS MHEWS API</span><span>Last successful poll {dateTime(eventsResponse?.last_successful_poll_at)}</span><span>Window {eventsResponse?.window_start ?? "—"} → {eventsResponse?.window_end ?? "—"}</span><span className={eventsResponse?.feed_state === "feed_degraded" ? "stale" : "fresh"}>{eventsResponse?.feed_state === "feed_degraded" ? "Cached / partial snapshot" : "Official feed response"}</span></div>
+          <div className="hazard-filter">{LIVE_FILTERS.map((item) => <button key={item.id} className={liveHazard === item.id ? "active" : ""} onClick={() => { setLiveHazard(item.id); setHazard(item.id); setEventListLimit(12); }}>{item.label}</button>)}</div>
+          <div className="live-alert-filters" aria-label="GDACS alert filter">{["all", "green", "orange", "red"].map((level) => <button type="button" key={level} className={liveAlert === level ? `active ${level}` : level} onClick={() => setLiveAlert(level)}>{level === "all" ? "All alerts" : level}</button>)}</div>
+          <form className="gdacs-search" onSubmit={(event) => { event.preventDefault(); setLiveSearch(liveSearchDraft.trim()); setEventListLimit(12); }}>
+            <label><span>Search name, event ID, or country</span><input value={liveSearchDraft} onChange={(event) => setLiveSearchDraft(event.target.value)} placeholder="e.g. EQ-1561994 or Japan" /></label>
+            <label><span>Region</span><input value={liveRegion} onChange={(event) => setLiveRegion(event.target.value)} placeholder="Country or region" /></label>
+            <div><label><span>From</span><input type="date" value={liveStartDate} onChange={(event) => setLiveStartDate(event.target.value)} /></label><label><span>To</span><input type="date" value={liveEndDate} onChange={(event) => setLiveEndDate(event.target.value)} /></label></div>
+            <button className="primary" type="submit" disabled={liveLoading}><Search size={14} /> {liveLoading ? "Searching official feed…" : "Search GDACS"}</button>
+          </form>
+          <div className="live-controls"><button type="button" onClick={() => setShowLiveQuery((value) => !value)}>{showLiveQuery ? "Hide query" : "Show query"}</button><span>{Math.min(eventListLimit, visibleEvents.length)} of {visibleEvents.length} listed · map shows all</span></div>
+          {showLiveQuery && <div className="gdacs-query"><strong>{eventsResponse?.query_endpoint ?? "GDACS endpoint unavailable"}</strong><pre>{JSON.stringify(eventsResponse?.query_parameters ?? {}, null, 2)}</pre></div>}
+          <div className="event-list">{visibleEvents.slice(0, eventListLimit).map((event) => <button key={event.event_id} onClick={() => onSelect({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 7 })}><i className={event.alert_level} /><span><strong>{event.name}</strong><small>{event.event_id} · {event.country} · {dateTime(event.from_date)}</small></span><ExternalLink size={15} /></button>)}</div>
           {eventListLimit < visibleEvents.length && <button className="event-load-more" type="button" onClick={() => setEventListLimit((value) => Math.min(value + 24, visibleEvents.length))}>Show 24 more official records</button>}
           {eventsResponse?.possibly_truncated && <p className="catalog-limit"><AlertTriangle size={13} /> The documented {eventsResponse.result_cap}-record retrieval cap was reached. Older matching GDACS records may exist.</p>}
-          {!visibleEvents.length && <div className="empty-live">No current events match this filter in the official feed.</div>}
+          {!liveLoading && !visibleEvents.length && <div className="empty-live rich"><strong>{eventsResponse?.feed_state === "feed_error" ? "GDACS request failed" : "No qualifying events in this window"}</strong><span>Feed: {eventsResponse?.source_name ?? "GDACS"}</span><span>Last successful poll: {dateTime(eventsResponse?.last_successful_poll_at)}</span><span>Window queried: {eventsResponse?.effective_window ?? liveWindow}</span><button type="button" onClick={() => setLiveWindow(liveWindow === "24h" ? "7d" : liveWindow === "7d" ? "30d" : liveWindow === "30d" ? "90d" : "ytd")}>Widen window</button>{eventsResponse?.error && <p>{eventsResponse.error}</p>}</div>}
           <p className="microcopy">GDACS information supports awareness and coordination; follow national and local authorities for warnings.</p>
         </section>}
 
@@ -697,7 +769,7 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
 
         {panel === "layers" && <aside className="floating-card compact-panel layers-panel"><div className="card-heading"><div><span className="eyebrow">Visible workspace</span><h2>Map layers</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close map layers"><X size={16} /></button></div><label className="layer-switch"><span><strong>Official event markers</strong><small>GDACS locations; not impact footprints</small></span><input type="checkbox" checked={geoLayers.events} onChange={(event) => setGeoLayers({ ...geoLayers, events: event.target.checked })} /></label><label className="layer-switch"><span><strong>Analysis footprint</strong><small>{analysisRun ? "Published geometry from current run" : "No analysis result on map"}</small></span><input type="checkbox" disabled={!analysisRun} checked={geoLayers.analysis && Boolean(analysisRun)} onChange={(event) => setGeoLayers({ ...geoLayers, analysis: event.target.checked })} /></label><label className="layer-switch"><span><strong>Modelled demo layer</strong><small>{run || modelLayer ? "Labelled sample result" : "Open guided demo to activate"}</small></span><input type="checkbox" disabled={!run && !modelLayer} checked={geoLayers.demo && Boolean(run || modelLayer)} onChange={(event) => setGeoLayers({ ...geoLayers, demo: event.target.checked })} /></label><label className="layer-opacity"><span>Footprint opacity</span><strong className="number-value">{Math.round(geoLayers.analysisOpacity * 100)}%</strong><input type="range" min="10" max="80" step="5" value={Math.round(geoLayers.analysisOpacity * 100)} onChange={(event) => setGeoLayers({ ...geoLayers, analysisOpacity: Number(event.target.value) / 100 })} /></label><div className="layer-filter-title">Event filter</div>{LIVE_FILTERS.map((item) => <button key={item.id} className={`layer-row ${hazard === item.id ? "active" : ""}`} onClick={() => setHazard(item.id)}><i style={{ background: item.color }} /><span><strong>{item.label}</strong><small>Filter official event locations</small></span></button>)}<div className="future-layer-note"><Database size={14} /><span><strong>Future connectors</strong>PostGIS boundaries, Sentinel-2, Overture roads and 3D buildings are not configured in this deployment.</span></div></aside>}
 
-        {selection && (view === "explore" || view === "live") && panel === "none" && <aside className="floating-card selection-card"><button className="card-close" onClick={() => setSelection(null)} aria-label="Close selection"><X size={17} /></button><StatusBadge tone={selection.status === "Demo" ? "demo" : selection.status === "Geocoded location" ? "neutral" : "live"}>{selection.status}</StatusBadge><h2>{selection.title}</h2><p>{selection.subtitle}</p>{selectedOfficialEvent && <EventGenome event={selectedOfficialEvent} compact />}<dl><div><dt>Source</dt><dd>{selection.source}</dd></div>{selectedOfficialEvent && <><div><dt>Official alert</dt><dd>{selectedOfficialEvent.alert_level}{selectedOfficialEvent.alert_score == null ? "" : ` · score ${selectedOfficialEvent.alert_score}`}</dd></div><div><dt>Last update</dt><dd>{dateTime(selectedOfficialEvent.modified_at)}</dd></div></>}<div><dt>Coordinates</dt><dd>{selection.center[1].toFixed(5)}, {selection.center[0].toFixed(5)}</dd></div><div><dt>Interpretation</dt><dd>{selection.status === "Demo" ? "Scenario input; not a current observation" : selection.status === "Geocoded location" ? "Map position only; no hazard or risk has been calculated here" : "Reported event location; not an impact footprint"}</dd></div></dl>{selection.status === "Demo" ? <button className="primary" onClick={() => chooseView("model")}>Open model</button> : <><button className="primary readiness-button" onClick={openModelReadiness}><FlaskConical size={15} /> Check model readiness</button>{selection.status === "Officially reported" && <><button className="secondary-link event-genome-link" type="button" onClick={openEventGenome}><Database size={15} /> Expand 3D event signature</button><a className="secondary-link" href={events.find((item) => item.event_id === selection.id)?.report_url} target="_blank" rel="noreferrer">Open official report <ExternalLink size={15} /></a></>}</>}</aside>}
+        {selection && (view === "explore" || view === "live") && panel === "none" && <aside className="floating-card selection-card"><button className="card-close" onClick={() => setSelection(null)} aria-label="Close selection"><X size={17} /></button><StatusBadge tone={selection.status === "Demo" ? "demo" : selection.status === "Geocoded location" ? "neutral" : "live"}>{selection.status}</StatusBadge><h2>{selection.title}</h2><p>{selection.subtitle}</p>{GENOME_LAB_ENABLED && selectedOfficialEvent && <EventGenome event={selectedOfficialEvent} compact />}<dl><div><dt>Source</dt><dd>{selection.source}</dd></div>{selectedOfficialEvent && <><div><dt>Official alert</dt><dd>{selectedOfficialEvent.alert_level}{selectedOfficialEvent.alert_score == null ? "" : ` · score ${selectedOfficialEvent.alert_score}`}</dd></div><div><dt>Last update</dt><dd>{dateTime(selectedOfficialEvent.modified_at)}</dd></div></>}<div><dt>Coordinates</dt><dd>{selection.center[1].toFixed(5)}, {selection.center[0].toFixed(5)}</dd></div><div><dt>Interpretation</dt><dd>{selection.status === "Demo" ? "Scenario input; not a current observation" : selection.status === "Geocoded location" ? "Map position only; no hazard or risk has been calculated here" : "Reported event location; not an impact footprint"}</dd></div></dl>{selection.status === "Demo" ? <button className="primary" onClick={() => chooseView("model")}>Open model</button> : <><button className="primary readiness-button" onClick={openModelReadiness}><FlaskConical size={15} /> Check model readiness</button>{selection.status === "Officially reported" && <>{GENOME_LAB_ENABLED && <button className="secondary-link event-genome-link" type="button" onClick={openEventGenome}><Database size={15} /> Expand 3D event signature</button>}<a className="secondary-link" href={events.find((item) => item.event_id === selection.id)?.report_url} target="_blank" rel="noreferrer">Open official report <ExternalLink size={15} /></a></>}</>}</aside>}
 
         {panel === "sources" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close source coverage" /><aside className="drawer source-drawer"><div className="drawer-head"><div><span className="eyebrow">Data quality</span><h2>Source & coverage</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close source coverage panel"><X size={18} /></button></div><p className="drawer-intro">Every layer states whether it is live, modelled, inferred, demo, or unavailable. Different resolutions are never blended silently.</p><section className="operational-source"><div><StatusBadge tone={eventsResponse?.data_status === "live" && !eventsResponse.stale ? "live" : "warning"}>{eventsResponse?.stale ? "stale" : eventsResponse?.data_status ?? "loading"}</StatusBadge><span><strong>Global event metadata</strong><small>UN–European Commission GDACS MHEWS API</small></span></div><dl><div><dt>Records retrieved</dt><dd>{eventsResponse?.counts.total ?? "Not available"}</dd></div><div><dt>Retrieved</dt><dd>{dateTime(eventsResponse?.fetched_at)}</dd></div><div><dt>Latest source update</dt><dd>{dateTime(eventsResponse?.source_updated_at)}</dd></div><div><dt>Map meaning</dt><dd>Reported event center; not an impact footprint</dd></div></dl></section><p className="coverage-label">CAT model input layers</p><div className="coverage-summary"><span><strong>{coverage.filter((item) => item.availability === "available_live").length}</strong> live CAT</span><span><strong>{coverage.filter((item) => item.availability === "available_demo").length}</strong> demo CAT</span><span><strong>{coverage.filter((item) => item.availability === "unavailable").length}</strong> unavailable</span></div><div className="coverage-list">{coverage.map((item) => <details key={item.layer_id}><summary><StatusBadge tone={item.availability === "available_live" ? "live" : item.availability === "available_demo" ? "demo" : "blocked"}>{item.availability.replaceAll("_", " ")}</StatusBadge><span><strong>{item.label}</strong><small>{item.source}</small></span><ChevronDown size={15} /></summary><dl><div><dt>Use</dt><dd>{item.use_in_run}</dd></div><div><dt>Resolution</dt><dd>{item.geographic_resolution}</dd></div><div><dt>Origin</dt><dd>{item.attribute_origin.replaceAll("_", " ")}</dd></div></dl>{item.limitations[0] && <p>{item.limitations[0]}</p>}</details>)}</div></aside></>}
 
@@ -706,7 +778,7 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
 
         {panel === "account" && <><button className="drawer-backdrop" onClick={() => setPanel("none")} aria-label="Close account" /><aside className="drawer account-drawer"><div className="drawer-head"><div><span className="eyebrow">User workspace</span><h2>{user ? `Welcome, ${user.name}` : "Sign in to RiskChain"}</h2></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close account"><X size={18} /></button></div>{user ? <div className="account-signed-in"><div className="account-avatar">{user.name.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</div><h3>{user.name}</h3><p>{user.email}</p><section><strong>Workspace status</strong><span>Browser-only demonstration profile</span><span>Runs saved on this device only</span><span>No private portfolio data uploaded</span></section><button onClick={signOutDemo}>Sign out</button></div> : <form className="account-form" onSubmit={signInDemo}><p>Create a local demonstration profile to keep recent run references on this device. This is not production authentication and does not create a cloud account.</p><label>Name<input value={accountName} onChange={(event) => setAccountName(event.target.value)} required autoComplete="name" /></label><label>Email<input type="email" value={accountEmail} onChange={(event) => setAccountEmail(event.target.value)} required autoComplete="email" /></label><button className="primary" type="submit"><UserRound size={16} /> Continue to demo workspace</button><div className="method-note"><ShieldCheck size={16} /><p>A production release requires an identity provider, server-side sessions, organization roles, tenant isolation and audit logging.</p></div></form>}</aside></>}
 
-        {panel === "genome" && selectedOfficialEvent && <aside className="drawer event-genome-drawer"><div className="drawer-head"><div><span className="eyebrow">Official metadata visualisation</span><h2>Event Genome</h2><p>{selectedOfficialEvent.name} · {selectedOfficialEvent.source}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close event signature"><X size={18} /></button></div><EventGenome event={selectedOfficialEvent} /></aside>}
+        {GENOME_LAB_ENABLED && panel === "genome" && selectedOfficialEvent && <aside className="drawer event-genome-drawer"><div className="drawer-head"><div><span className="eyebrow">Official metadata visualisation</span><h2>Event Genome</h2><p>{selectedOfficialEvent.name} · {selectedOfficialEvent.source}</p></div><button className="icon-button" onClick={() => setPanel("none")} aria-label="Close event signature"><X size={18} /></button></div><EventGenome event={selectedOfficialEvent} /></aside>}
 
         {panel === "ai" && <GeoAgentPanel onClose={() => setPanel("none")} view={view} scope={scope} hazard={analysisRun?.hazard_type ?? hazard} selection={selection} viewport={mapViewport} visibleEventCount={geoLayers.events ? visibleEvents.length : 0} analysisRun={analysisRun} hasDemoRun={Boolean(run || modelLayer)} layers={geoLayers} onLayersChange={setGeoLayers} question={aiQuestion} onQuestionChange={setAiQuestion} answer={aiAnswer} loading={loading} onSubmit={askCopilot} />}
 

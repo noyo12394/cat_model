@@ -25,7 +25,7 @@ export function GlobalEventsPanel() {
   const setOffsetMinutes = useAppStore((state) => state.setOffsetMinutes);
   const query = useQuery({
     queryKey: ["global-events"],
-    queryFn: api.globalEvents,
+    queryFn: () => api.globalEvents(),
     staleTime: 300_000,
     refetchInterval: 300_000,
   });

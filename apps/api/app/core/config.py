@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     usgs_water_base_url: str = "https://api.waterdata.usgs.gov/ogcapi/v0"
     usgs_quake_base_url: str = "https://earthquake.usgs.gov/earthquakes/feed/v1.0"
     gdacs_base_url: str = "https://www.gdacs.org/gdacsapi/api"
+    live_window_days: int = 90
+    gdacs_cache_ttl_seconds: int = 600
     # Public article-index endpoint. RiskChain stores and displays only the
     # metadata returned by this source (title, URL, publisher and timestamp),
     # never copied article text.

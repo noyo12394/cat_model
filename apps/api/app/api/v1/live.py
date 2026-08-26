@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import asyncio
+from datetime import date, datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -48,14 +50,46 @@ class RegionSummary(BaseModel):
 
 @router.get("/global-events", response_model=GlobalEventsResponse)
 async def get_global_events(
-    force: bool = Query(default=False, description="Bypass the five-minute server cache for an explicit user refresh."),
+    window: Literal["24h", "7d", "30d", "90d", "ytd"] = Query(default="30d"),
+    alert: str | None = Query(default=None, description="Comma-separated GDACS levels."),
+    hazard: str | None = Query(default=None, description="Comma-separated GDACS event types."),
+    region: str | None = Query(default=None, max_length=120),
+    q: str | None = Query(default=None, max_length=160),
+    start_date: date | None = None,
+    end_date: date | None = None,
+    force: bool = Query(default=False, description="Bypass the short-TTL server cache for an explicit user refresh."),
     settings: Settings = Depends(settings_dep),
 ) -> GlobalEventsResponse:
-    response = await fetch_global_events(settings, force=force)
-    events = response.items
+    now = datetime.now(timezone.utc)
+    window_days = {"24h": 1, "7d": 7, "30d": 30, "90d": 90}
+    end = end_date or now.date()
+    start = start_date or (date(now.year, 1, 1) if window == "ytd" else end - timedelta(days=window_days[window]))
+    hazards = tuple(item for item in (hazard or "EQ,TC,FL,VO,DR,WF").upper().split(",") if item in {"EQ", "TC", "FL", "VO", "DR", "WF"}) or ("EQ", "TC", "FL", "VO", "DR", "WF")
+    alerts = tuple(item for item in (alert or "green,orange,red").lower().split(",") if item in {"green", "orange", "red"}) or ("green", "orange", "red")
+    response = await fetch_global_events(settings, from_date=start, to_date=end, hazards=hazards, alerts=alerts, force=force)
+
+    def matches(event) -> bool:
+        haystack = f"{event.event_id} {event.name} {event.country}".casefold()
+        return (not region or region.casefold() in event.country.casefold()) and (not q or q.casefold() in haystack)
+
+    events = [event for event in response.items if matches(event)]
+    effective_window = window
+    auto_widened = False
+    if not events and not start_date and window in {"24h", "7d", "30d"}:
+        next_window = {"24h": "7d", "7d": "30d", "30d": "90d"}[window]
+        wider_start = end - timedelta(days=window_days[next_window])
+        wider = await fetch_global_events(settings, from_date=wider_start, to_date=end, hazards=hazards, alerts=alerts, force=force)
+        wider_events = [event for event in wider.items if matches(event)]
+        if wider_events:
+            response, events, start, effective_window, auto_widened = wider, wider_events, wider_start, next_window, True
     levels = [event.alert_level for event in events]
     latest = max((event.modified_at for event in events), default=None)
-    age_seconds = (datetime.now(timezone.utc) - latest).total_seconds() if latest else None
+    age_seconds = (now - latest).total_seconds() if latest else None
+    feed_state = (
+        "feed_error" if response.status == DataStatus.UNAVAILABLE else
+        "feed_degraded" if response.status == DataStatus.STALE else
+        "feed_ok_no_events" if not events else "feed_ok"
+    )
     return GlobalEventsResponse(
         events=events,
         counts=GlobalEventCounts(
@@ -71,7 +105,25 @@ async def get_global_events(
         result_cap=500,
         possibly_truncated=len(events) >= 500,
         error=response.note if response.status == DataStatus.UNAVAILABLE else None,
+        feed_state=feed_state,
+        requested_window=window,
+        effective_window=effective_window,
+        window_start=start,
+        window_end=end,
+        auto_widened=auto_widened,
+        last_successful_poll_at=response.retrieved_at if response.status != DataStatus.UNAVAILABLE else None,
+        query_endpoint=response.request_url,
+        query_parameters=response.request_params,
     )
+
+
+@router.get("/warm")
+async def warm_global_event_cache(settings: Settings = Depends(settings_dep)) -> dict[str, str]:
+    """Warm every teaching-window variant so a workshop does not start cold."""
+    today = datetime.now(timezone.utc).date()
+    starts = [today - timedelta(days=days) for days in (1, 7, 30, settings.live_window_days)] + [date(today.year, 1, 1)]
+    await asyncio.gather(*(fetch_global_events(settings, from_date=start, to_date=today) for start in starts))
+    return {"status": "warmed", "source": "GDACS", "retrieved_at": datetime.now(timezone.utc).isoformat()}
 
 
 @router.get("/global-outlook", response_model=GlobalOutlookResponse)

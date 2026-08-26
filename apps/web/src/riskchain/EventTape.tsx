@@ -15,9 +15,7 @@ function alertTone(event: GlobalEvent) {
 }
 
 export function EventTape({ events, onSelect }: Props) {
-  if (!events.length) {
-    return <div className="event-tape event-tape-empty" aria-label="Live event tape"><span>Live event tape</span><p>No current events on tape.</p></div>;
-  }
+  if (!events.length) return null;
 
   // The tape is an ambient recency signal rather than a catalog. Keep the full
   // official response on the map and in the event list, but bound this moving
@@ -31,7 +29,7 @@ export function EventTape({ events, onSelect }: Props) {
       <div className="event-tape-track">
         {tapeEvents.map((event, index) => {
           const tone = alertTone(event);
-          const eventLabel = `${event.name} · ${event.alert_level} alert`;
+          const eventLabel = `${event.event_type} · ${event.name} · ${event.alert_level} alert · ${event.country} · ${new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(event.from_date))}`;
           const duplicate = index >= tapeSource.length;
           return <button
             className={`tape-spike ${tone}`}
@@ -51,8 +49,8 @@ export function EventTape({ events, onSelect }: Props) {
               zoom: 7,
             })}
           >
-            <i aria-hidden="true" />
-            <span className="tape-spike-tooltip" role="tooltip">{eventLabel}</span>
+            <i aria-hidden="true">{event.event_type}</i>
+            <span>{event.name}<small>{event.alert_level} · {event.country} · {new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(event.from_date))}</small></span>
           </button>;
         })}
       </div>

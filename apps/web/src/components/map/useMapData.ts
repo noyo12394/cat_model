@@ -54,7 +54,7 @@ export function useMapData() {
   const incidents = useQuery({ queryKey: ["incidents", "live"], queryFn: () => api.listIncidents("live") });
   const liveEvents = useQuery({ queryKey: ["live-events"], queryFn: api.liveEvents });
   const multiHazard = useQuery({ queryKey: ["multi-hazard-overview"], queryFn: api.multiHazardOverview, staleTime: 60_000 });
-  const globalEvents = useQuery({ queryKey: ["global-events"], queryFn: api.globalEvents, staleTime: 300_000 });
+  const globalEvents = useQuery({ queryKey: ["global-events"], queryFn: () => api.globalEvents(), staleTime: 300_000 });
   const globalOutlook = useQuery({
     queryKey: ["global-outlook", Math.max(0, offsetMinutes)],
     queryFn: () => api.globalOutlook(Math.max(0, offsetMinutes)),

@@ -42,6 +42,26 @@ import type {
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 type NewsTopic = "all" | "flood" | "wildfire" | "earthquake" | "storm" | "drought" | "cat_model" | "resilience";
+export type LiveWindow = "24h" | "7d" | "30d" | "90d" | "ytd";
+export type GlobalEventQuery = {
+  window?: LiveWindow;
+  alert?: string;
+  hazard?: string;
+  region?: string;
+  q?: string;
+  start_date?: string;
+  end_date?: string;
+  force?: boolean;
+};
+
+function globalEventPath(query: GlobalEventQuery = {}) {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== "" && value !== "all" && value !== false) params.set(key, String(value));
+  });
+  const suffix = params.toString();
+  return `/live/global-events${suffix ? `?${suffix}` : ""}`;
+}
 
 const GDELT_NEWS_QUERIES: Record<NewsTopic, { query: string; label: string }> = {
   all: {
@@ -158,8 +178,8 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 30_000):
 export const api = {
   liveSummary: () => request<RegionSummary>("/live/summary"),
   liveEvents: () => request<LiveEventsResponse>("/live/events"),
-  globalEvents: () => request<GlobalEventsResponse>("/live/global-events"),
-  refreshGlobalEvents: () => request<GlobalEventsResponse>("/live/global-events?force=true"),
+  globalEvents: (query: GlobalEventQuery = {}) => request<GlobalEventsResponse>(globalEventPath(query), undefined, 45_000),
+  refreshGlobalEvents: (query: GlobalEventQuery = {}) => request<GlobalEventsResponse>(globalEventPath({ ...query, force: true }), undefined, 45_000),
   newsArticles: (
     hazard: NewsTopic = "all",
     hours = 24,

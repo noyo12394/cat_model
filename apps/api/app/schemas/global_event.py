@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -53,3 +54,12 @@ class GlobalEventsResponse(BaseModel):
         "and additional authoritative sources."
     )
     error: str | None = None
+    feed_state: Literal["feed_ok", "feed_ok_no_events", "feed_degraded", "feed_error"] = "feed_ok"
+    requested_window: str = "90d"
+    effective_window: str = "90d"
+    window_start: date | None = None
+    window_end: date | None = None
+    auto_widened: bool = False
+    last_successful_poll_at: datetime | None = None
+    query_endpoint: HttpUrl | None = None
+    query_parameters: dict[str, str | int] = Field(default_factory=dict)
