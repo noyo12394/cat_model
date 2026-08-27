@@ -29,6 +29,11 @@ type View = "explore" | "model" | "results" | "live" | "news" | "activity" | "le
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account" | "genome";
 type LivePreset = LiveWindow | "custom";
 type LiveSort = "date" | "hazard" | "location" | "severity" | "source";
+type LiveInitialQuery = {
+  window?: string; hazard?: string; alert?: string; region?: string; q?: string;
+  from?: string; to?: string; start_date?: string; end_date?: string;
+  min_impact?: string; sort?: string;
+};
 
 const GENOME_LAB_ENABLED = process.env.NEXT_PUBLIC_FF_GENOME_LAB === "true";
 const LIVE_ROLLING_ENABLED = process.env.NEXT_PUBLIC_FF_LIVE_ROLLING !== "false";
@@ -72,11 +77,6 @@ const NEWS_FILTERS: { id: "all" | "flood" | "wildfire" | "earthquake" | "storm" 
 
 type WorkspaceUser = { name: string; email: string };
 
-function initialLiveParam(name: string, fallback: string) {
-  if (typeof window === "undefined") return fallback;
-  return new URLSearchParams(window.location.search).get(name) || fallback;
-}
-
 function workshopEndDate() {
   const today = new Date().toISOString().slice(0, 10);
   if (today < WORKSHOP_START) return WORKSHOP_START;
@@ -99,17 +99,15 @@ function rangeForPreset(preset: LivePreset) {
   return { from: WORKSHOP_START, to };
 }
 
-function initialLivePreset(): LivePreset {
-  const value = initialLiveParam("window", "ytd");
+function initialLivePreset(query?: LiveInitialQuery): LivePreset {
+  const value = query?.window || "ytd";
   return (["24h", "7d", "30d", "90d", "ytd", "custom"] as string[]).includes(value) ? value as LivePreset : "ytd";
 }
 
-function initialLiveDate(side: "from" | "to") {
+function initialLiveDate(side: "from" | "to", query?: LiveInitialQuery) {
   const fallback = rangeForPreset("ytd")[side];
-  if (typeof window === "undefined") return fallback;
-  const params = new URLSearchParams(window.location.search);
-  const legacy = side === "from" ? "start_date" : "end_date";
-  return params.get(side) || params.get(legacy) || rangeForPreset(initialLivePreset())[side];
+  const legacyValue = side === "from" ? query?.start_date : query?.end_date;
+  return query?.[side] || legacyValue || rangeForPreset(initialLivePreset(query))[side] || fallback;
 }
 
 function dateTime(value?: string | null) {
@@ -131,7 +129,7 @@ function StatusBadge({ children, tone = "neutral" }: { children: React.ReactNode
   return <span className={`status-badge ${tone}`}>{children}</span>;
 }
 
-export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: View }) {
+export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }: { initialView?: View; initialLiveQuery?: LiveInitialQuery }) {
   const [view, setView] = useState<View>(initialView);
   const [panel, setPanel] = useState<Panel>("none");
   const [operationsMode, setOperationsMode] = useState(false);
@@ -172,17 +170,17 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   const [research, setResearch] = useState<ResearchSearchResponse | null>(null);
   const [aiQuestion, setAiQuestion] = useState("Explain the largest uncertainty in this analysis.");
   const [aiAnswer, setAiAnswer] = useState<CopilotAnswer | null>(null);
-  const [liveWindow, setLiveWindow] = useState<LivePreset>(() => initialLivePreset());
-  const [liveHazard, setLiveHazard] = useState(() => initialLiveParam("hazard", "all"));
-  const [liveAlert, setLiveAlert] = useState(() => initialLiveParam("alert", "all"));
-  const [liveRegion, setLiveRegion] = useState(() => initialLiveParam("region", ""));
-  const [liveSearchDraft, setLiveSearchDraft] = useState(() => initialLiveParam("q", ""));
-  const [liveSearch, setLiveSearch] = useState(() => initialLiveParam("q", ""));
-  const [liveStartDate, setLiveStartDate] = useState(() => initialLiveDate("from"));
-  const [liveEndDate, setLiveEndDate] = useState(() => initialLiveDate("to"));
-  const [liveMinImpact, setLiveMinImpact] = useState(() => Math.max(0, Number(initialLiveParam("min_impact", "0")) || 0));
+  const [liveWindow, setLiveWindow] = useState<LivePreset>(() => initialLivePreset(initialLiveQuery));
+  const [liveHazard, setLiveHazard] = useState(() => initialLiveQuery?.hazard || "all");
+  const [liveAlert, setLiveAlert] = useState(() => initialLiveQuery?.alert || "all");
+  const [liveRegion, setLiveRegion] = useState(() => initialLiveQuery?.region || "");
+  const [liveSearchDraft, setLiveSearchDraft] = useState(() => initialLiveQuery?.q || "");
+  const [liveSearch, setLiveSearch] = useState(() => initialLiveQuery?.q || "");
+  const [liveStartDate, setLiveStartDate] = useState(() => initialLiveDate("from", initialLiveQuery));
+  const [liveEndDate, setLiveEndDate] = useState(() => initialLiveDate("to", initialLiveQuery));
+  const [liveMinImpact, setLiveMinImpact] = useState(() => Math.max(0, Number(initialLiveQuery?.min_impact || "0") || 0));
   const [liveSort, setLiveSort] = useState<LiveSort>(() => {
-    const value = initialLiveParam("sort", "date");
+    const value = initialLiveQuery?.sort || "date";
     return (["date", "hazard", "location", "severity", "source"] as string[]).includes(value) ? value as LiveSort : "date";
   });
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
