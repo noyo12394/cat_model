@@ -149,13 +149,13 @@ function errorMessage(body: string, fallback: string) {
   return body.includes("<html") ? fallback : body.slice(0, 280);
 }
 
-async function request<T>(path: string, init?: RequestInit, timeoutMs = 30_000): Promise<T> {
+async function request<T>(path: string, init?: RequestInit, timeoutMs = 30_000, baseUrl = BASE_URL): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   const abortFromCaller = () => controller.abort();
   init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
   try {
-    const res = await fetch(`${BASE_URL}${path}`, {
+    const res = await fetch(`${baseUrl}${path}`, {
       ...init,
       signal: controller.signal,
       // Do not attach Content-Type to GET requests. Besides being inaccurate,
@@ -256,7 +256,7 @@ export const api = {
     body: JSON.stringify(body),
   }),
   hazardEvents: (mode: Exclude<AnalysisMode,"demo">, hazard: AnalysisHazard, startDate?:string,endDate?:string) => { const params=new URLSearchParams({mode,hazard_type:hazard}); if(startDate)params.set("start_date",startDate); if(endDate)params.set("end_date",endDate); return request<HazardEventSearchResponse>(`/cat/hazard-events?${params.toString()}`); },
-  runAnalysis: (body:{mode:Exclude<AnalysisMode,"demo">;hazard_type:AnalysisHazard;location?:AnalysisLocation|null;provider?:string|null;event_id?:string|null;advisory_id?:string|null;threshold?:string|null;return_period_years?:number|null;start_date?:string|null;end_date?:string|null;exposure_dataset?:string;vulnerability_model?:string|null;simulation_count?:number;seed?:number}) => request<AnalysisRunResult>("/cat/analyses",{method:"POST",body:JSON.stringify(body)},45_000),
+  runAnalysis: (body:{mode:Exclude<AnalysisMode,"demo">;hazard_type:AnalysisHazard;location?:AnalysisLocation|null;provider?:string|null;event_id?:string|null;advisory_id?:string|null;threshold?:string|null;return_period_years?:number|null;start_date?:string|null;end_date?:string|null;exposure_dataset?:string;vulnerability_model?:string|null;simulation_count?:number;seed?:number}) => request<AnalysisRunResult>("/cat/analyses",{method:"POST",body:JSON.stringify(body)},60_000,"/api-proxy"),
   catDataCoverage: () => request<DataCoverageItem[]>("/cat/data-coverage"),
   catVulnerabilityFunctions: () => request<VulnerabilityFunction[]>("/cat/vulnerability-functions"),
   catProbabilisticResults: (runId: string, years = 5000) =>
