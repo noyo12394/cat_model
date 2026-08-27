@@ -1,6 +1,16 @@
 import type { NextConfig } from "next";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "");
+
+if (process.env.VERCEL && !configuredApiBaseUrl) {
+  throw new Error("NEXT_PUBLIC_API_BASE_URL is required for Vercel deployments");
+}
+
+const apiBaseUrl = configuredApiBaseUrl ?? "http://localhost:8000/api/v1";
+
+if (!/^https?:\/\//.test(apiBaseUrl) || (process.env.VERCEL && !apiBaseUrl.startsWith("https://"))) {
+  throw new Error("NEXT_PUBLIC_API_BASE_URL must be an absolute HTTPS URL in Vercel");
+}
 
 const nextConfig: NextConfig = {
   // Standalone output keeps the production Docker image small (section 34
