@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.adapters.gdacs import fetch_global_events
@@ -48,48 +47,141 @@ class RegionSummary(BaseModel):
     is_demo: bool = True
 
 
+_ALL_GDACS_HAZARDS = ("EQ", "TC", "FL", "VO", "DR", "WF")
+_ALL_GDACS_ALERTS = ("green", "orange", "red")
+_HAZARD_ALIASES = {
+    "EQ": "EQ",
+    "EARTHQUAKE": "EQ",
+    "TC": "TC",
+    "CYCLONE": "TC",
+    "TROPICAL_CYCLONE": "TC",
+    "HURRICANE": "TC",
+    "FL": "FL",
+    "FLOOD": "FL",
+    "VO": "VO",
+    "VOLCANO": "VO",
+    "VOLCANIC_ACTIVITY": "VO",
+    "DR": "DR",
+    "DROUGHT": "DR",
+    "WF": "WF",
+    "WILDFIRE": "WF",
+    "FIRE": "WF",
+}
+
+
+def _csv_values(value: str | None) -> list[str]:
+    return [item.strip() for item in (value or "").replace(";", ",").split(",") if item.strip()]
+
+
+def _parse_hazards(value: str | None) -> tuple[str, ...]:
+    raw = _csv_values(value)
+    if not raw or any(item.casefold() == "all" for item in raw):
+        return _ALL_GDACS_HAZARDS
+    invalid = [item for item in raw if item.upper().replace(" ", "_") not in _HAZARD_ALIASES]
+    if invalid:
+        raise HTTPException(status_code=422, detail=f"Unsupported GDACS hazard filter: {', '.join(invalid)}")
+    return tuple(dict.fromkeys(_HAZARD_ALIASES[item.upper().replace(" ", "_")] for item in raw))
+
+
+def _parse_alerts(value: str | None) -> tuple[str, ...]:
+    raw = [item.lower() for item in _csv_values(value)]
+    if not raw or "all" in raw:
+        return _ALL_GDACS_ALERTS
+    invalid = [item for item in raw if item not in _ALL_GDACS_ALERTS]
+    if invalid:
+        raise HTTPException(status_code=422, detail=f"Unsupported GDACS alert filter: {', '.join(invalid)}")
+    return tuple(dict.fromkeys(raw))
+
+
+def _preset_start(window: str, end: date) -> date:
+    if window == "ytd":
+        return date(end.year, 1, 1)
+    inclusive_days = {"today": 1, "24h": 1, "7d": 7, "30d": 30, "90d": 90}[window]
+    return end - timedelta(days=inclusive_days - 1)
+
+
 @router.get("/global-events", response_model=GlobalEventsResponse)
 async def get_global_events(
-    window: Literal["24h", "7d", "30d", "90d", "ytd"] = Query(default="30d"),
+    window: Literal["today", "24h", "7d", "30d", "90d", "ytd"] = Query(default="ytd"),
     alert: str | None = Query(default=None, description="Comma-separated GDACS levels."),
     hazard: str | None = Query(default=None, description="Comma-separated GDACS event types."),
     region: str | None = Query(default=None, max_length=120),
     q: str | None = Query(default=None, max_length=160),
-    start_date: date | None = None,
-    end_date: date | None = None,
+    min_impact: int | None = Query(
+        default=None,
+        ge=1,
+        le=3,
+        description="Minimum GDACS alert score: 1 Green, 2 Orange, or 3 Red.",
+    ),
+    from_date: date | None = Query(default=None, alias="from"),
+    to_date: date | None = Query(default=None, alias="to"),
+    start_date: date | None = Query(default=None, description="Legacy alias for `from`."),
+    end_date: date | None = Query(default=None, description="Legacy alias for `to`."),
     force: bool = Query(default=False, description="Bypass the short-TTL server cache for an explicit user refresh."),
     settings: Settings = Depends(settings_dep),
 ) -> GlobalEventsResponse:
     now = datetime.now(timezone.utc)
-    window_days = {"24h": 1, "7d": 7, "30d": 30, "90d": 90}
-    end = end_date or now.date()
-    start = start_date or (date(now.year, 1, 1) if window == "ytd" else end - timedelta(days=window_days[window]))
-    hazards = tuple(item for item in (hazard or "EQ,TC,FL,VO,DR,WF").upper().split(",") if item in {"EQ", "TC", "FL", "VO", "DR", "WF"}) or ("EQ", "TC", "FL", "VO", "DR", "WF")
-    alerts = tuple(item for item in (alert or "green,orange,red").lower().split(",") if item in {"green", "orange", "red"}) or ("green", "orange", "red")
-    response = await fetch_global_events(settings, from_date=start, to_date=end, hazards=hazards, alerts=alerts, force=force)
+    if from_date and start_date and from_date != start_date:
+        raise HTTPException(status_code=422, detail="`from` and `start_date` must match when both are supplied.")
+    if to_date and end_date and to_date != end_date:
+        raise HTTPException(status_code=422, detail="`to` and `end_date` must match when both are supplied.")
+    explicit_start = from_date or start_date
+    explicit_end = to_date or end_date
+    end = explicit_end or now.date()
+    start = explicit_start or _preset_start(window, end)
+    if start > end:
+        raise HTTPException(status_code=422, detail="`from` must be on or before `to`.")
+    hazards = _parse_hazards(hazard)
+    alerts = _parse_alerts(alert)
+    response = await fetch_global_events(
+        settings,
+        from_date=start,
+        to_date=end,
+        hazards=hazards,
+        alerts=alerts,
+        force=force,
+    )
 
     def matches(event) -> bool:
-        haystack = f"{event.event_id} {event.name} {event.country}".casefold()
-        return (not region or region.casefold() in event.country.casefold()) and (not q or q.casefold() in haystack)
+        haystack = " ".join(
+            (
+                event.event_id,
+                event.event_type,
+                event.name,
+                event.country,
+                event.source,
+                event.severity_text,
+                event.from_date.date().isoformat(),
+                event.to_date.date().isoformat(),
+            )
+        ).casefold()
+        score = (
+            event.alert_score
+            if event.alert_score is not None
+            else {"green": 1, "orange": 2, "red": 3}.get(event.alert_level, 0)
+        )
+        return (
+            (not region or region.casefold() in event.country.casefold())
+            and (not q or q.casefold() in haystack)
+            and (min_impact is None or score >= min_impact)
+        )
 
     events = [event for event in response.items if matches(event)]
-    effective_window = window
-    auto_widened = False
-    if not events and not start_date and window in {"24h", "7d", "30d"}:
-        next_window = {"24h": "7d", "7d": "30d", "30d": "90d"}[window]
-        wider_start = end - timedelta(days=window_days[next_window])
-        wider = await fetch_global_events(settings, from_date=wider_start, to_date=end, hazards=hazards, alerts=alerts, force=force)
-        wider_events = [event for event in wider.items if matches(event)]
-        if wider_events:
-            response, events, start, effective_window, auto_widened = wider, wider_events, wider_start, next_window, True
     levels = [event.alert_level for event in events]
     latest = max((event.modified_at for event in events), default=None)
-    age_seconds = (now - latest).total_seconds() if latest else None
     feed_state = (
         "feed_error" if response.status == DataStatus.UNAVAILABLE else
         "feed_degraded" if response.status == DataStatus.STALE else
         "feed_ok_no_events" if not events else "feed_ok"
     )
+    local_filters: dict[str, str | int] = {}
+    if region:
+        local_filters["region"] = region
+    if q:
+        local_filters["q"] = q
+    if min_impact is not None:
+        local_filters["min_impact"] = min_impact
+    requested_window = "custom" if explicit_start or explicit_end else window
     return GlobalEventsResponse(
         events=events,
         counts=GlobalEventCounts(
@@ -101,29 +193,48 @@ async def get_global_events(
         fetched_at=response.retrieved_at,
         source_updated_at=latest,
         data_status=response.status,
-        stale=response.status == DataStatus.STALE or (age_seconds is not None and age_seconds > 86400),
+        stale=response.status == DataStatus.STALE,
         result_cap=500,
-        possibly_truncated=len(events) >= 500,
+        possibly_truncated="retrieval cap" in (response.note or "").lower(),
         error=response.note if response.status == DataStatus.UNAVAILABLE else None,
         feed_state=feed_state,
-        requested_window=window,
-        effective_window=effective_window,
+        requested_window=requested_window,
+        effective_window=requested_window,
         window_start=start,
         window_end=end,
-        auto_widened=auto_widened,
+        auto_widened=False,
         last_successful_poll_at=response.retrieved_at if response.status != DataStatus.UNAVAILABLE else None,
         query_endpoint=response.request_url,
         query_parameters=response.request_params,
+        local_filters=local_filters,
+        feed_message=response.note,
+        response_mode=response.response_mode,
+        snapshot_retrieved_at=response.snapshot_retrieved_at,
     )
 
 
 @router.get("/warm")
-async def warm_global_event_cache(settings: Settings = Depends(settings_dep)) -> dict[str, str]:
-    """Warm every teaching-window variant so a workshop does not start cold."""
+async def warm_global_event_cache(settings: Settings = Depends(settings_dep)) -> dict[str, object]:
+    """Warm broad teaching windows without sending a burst of GDACS calls."""
     today = datetime.now(timezone.utc).date()
-    starts = [today - timedelta(days=days) for days in (1, 7, 30, settings.live_window_days)] + [date(today.year, 1, 1)]
-    await asyncio.gather(*(fetch_global_events(settings, from_date=start, to_date=today) for start in starts))
-    return {"status": "warmed", "source": "GDACS", "retrieved_at": datetime.now(timezone.utc).isoformat()}
+    windows = {
+        "90d": today - timedelta(days=89),
+        "ytd": date(today.year, 1, 1),
+    }
+    results = {}
+    for label, start in windows.items():
+        result = await fetch_global_events(settings, from_date=start, to_date=today, force=True)
+        results[label] = {"status": result.status.value, "count": len(result.items), "mode": result.response_mode}
+    return {
+        "status": (
+            "warmed"
+            if any(item["status"] != DataStatus.UNAVAILABLE.value for item in results.values())
+            else "unavailable"
+        ),
+        "source": "GDACS",
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "windows": results,
+    }
 
 
 @router.get("/global-outlook", response_model=GlobalOutlookResponse)

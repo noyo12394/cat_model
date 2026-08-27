@@ -8,7 +8,7 @@ type MapViewport = { center: [number, number]; zoom: number };
 type View = "markers" | "columns" | "hexbins";
 type Metric = "damage" | "building" | "total";
 type Asset = { id: string; name: string; occupancy: string; point: [number, number]; depth: number; ratio: number; building: number; contents: number; bi: number; total: number; extrapolated: boolean };
-type Props = { events: GlobalEvent[]; scope: "global" | "local"; operationsMode: boolean; hazard: string; focus?: [number, number] | null; focusZoom?: number | null; modelLayer?: ModelResultLayer | null; modelRun?: CatModelRunResult | null; analysisLayer?: AnalysisRunResult["hazard_layers"][number] | null; analysisOpacity?: number; showDemoLayer?: boolean; onSelect: (selection: Selection) => void; onViewportChange?: (viewport: MapViewport) => void };
+type Props = { events: GlobalEvent[]; scope: "global" | "local"; operationsMode: boolean; hazard: string; focus?: [number, number] | null; focusZoom?: number | null; modelLayer?: ModelResultLayer | null; modelRun?: CatModelRunResult | null; analysisLayer?: AnalysisRunResult["hazard_layers"][number] | null; analysisOpacity?: number; showDemoLayer?: boolean; highlightEventId?: string | null; autoFitEvents?: boolean; onSelect: (selection: Selection) => void; onViewportChange?: (viewport: MapViewport) => void };
 
 const color = (r: number) => r >= .45 ? "#d93025" : r >= .25 ? "#f4511e" : r >= .1 ? "#f9ab00" : r > 0 ? "#1a73e8" : "#8aa0ae";
 const rgb = (r: number): [number, number, number, number] => r >= .45 ? [217,48,37,224] : r >= .25 ? [244,81,30,220] : r >= .1 ? [249,171,0,216] : r > 0 ? [26,115,232,210] : [138,160,174,190];
@@ -32,8 +32,8 @@ const basemapStyle = (dark: boolean, scope: "global" | "local") => {
 };
 const assetTip = (a: Asset) => `<div class="deck-tooltip"><strong>${escape(a.name)}</strong><span>${escape(a.occupancy)}</span><hr/><span>Flood depth <b>${a.depth.toFixed(2)} ft</b></span><span>Mean damage <b>${(a.ratio*100).toFixed(1)}%</b></span><span>Building <b>${usd(a.building)}</b></span><span>Contents <b>${usd(a.contents)}</b></span><span>Business interruption <b>${usd(a.bi)}</b></span><span>Total <b>${usd(a.total)}</b></span>${a.extrapolated ? "<em>Extrapolated result — see audit</em>" : ""}</div>`;
 
-export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, modelRun, analysisLayer, analysisOpacity = .22, showDemoLayer = true, onSelect, onViewportChange }: Props) {
-  const ref = useRef<HTMLDivElement>(null); const selectRef = useRef(onSelect); const viewportRef = useRef(onViewportChange); const revealed = useRef(false);
+export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoom, modelLayer, modelRun, analysisLayer, analysisOpacity = .22, showDemoLayer = true, highlightEventId = null, autoFitEvents = false, onSelect, onViewportChange }: Props) {
+  const ref = useRef<HTMLDivElement>(null); const mapRef = useRef<import("maplibre-gl").Map | null>(null); const selectRef = useRef(onSelect); const viewportRef = useRef(onViewportChange); const highlightRef = useRef(highlightEventId); const revealed = useRef(false);
   const [view, setView] = useState<View>("markers"); const [metric, setMetric] = useState<Metric>("total"); const [resolution, setResolution] = useState(9); const [threeD, setThreeD] = useState(false);
   const assets = useMemo<Asset[]>(() => {
     if (!modelLayer || !modelRun) return [];
@@ -41,7 +41,7 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
     return modelLayer.geojson.features.flatMap((f) => { const a = byId.get(f.properties.asset_id); return a ? [{ id:a.asset_id, name:f.properties.name, occupancy:f.properties.occupancy, point:f.geometry.coordinates, depth:a.intensity, ratio:a.mean_damage_ratio, building:a.building_loss_usd, contents:a.contents_loss_usd, bi:a.business_interruption_loss_usd, total:a.ground_up_loss_usd, extrapolated:Boolean(a.extrapolated || f.properties.extrapolated) }] : []; });
   }, [modelLayer, modelRun]);
   const visualResults = scope === "local" && assets.length > 0;
-  useEffect(() => { selectRef.current = onSelect; }, [onSelect]); useEffect(() => { viewportRef.current = onViewportChange; }, [onViewportChange]); useEffect(() => { if (scope !== "local") {
+  useEffect(() => { selectRef.current = onSelect; }, [onSelect]); useEffect(() => { viewportRef.current = onViewportChange; }, [onViewportChange]); useEffect(() => { highlightRef.current = highlightEventId; const map = mapRef.current; if (!map?.getLayer("official-global-events-point")) return; const selected = highlightEventId ?? ""; map.setPaintProperty("official-global-events-point", "circle-stroke-width", ["case", ["==", ["get", "event_id"], selected], 5, 2]); map.setPaintProperty("official-global-events-point", "circle-radius", ["case", ["==", ["get", "event_id"], selected], 11, ["interpolate", ["linear"], ["get", "alert_rank"], 1, 4.5, 2, 6, 3, 8]] as never); }, [highlightEventId]); useEffect(() => { if (scope !== "local") {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- leaving a local 3D map must reset its visual-only camera context.
     setThreeD(false);
   } }, [scope]);
@@ -54,7 +54,7 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
   useEffect(() => {
     let alive = true; let map: import("maplibre-gl").Map | undefined; const host = ref.current;
     const start = async () => { if (!host) return; const maplibre = (await import("maplibre-gl")).default; if (!alive) return;
-      map = new maplibre.Map({ container:host, style:basemapStyle(operationsMode, scope), center:focus ?? (scope === "global" ? [5,18] : [-75.3705,40.6259]), zoom:focus ? focusZoom ?? 12 : scope === "global" ? 1.75 : 12.4, pitch: threeD && scope === "local" ? 52 : 0, bearing: threeD && scope === "local" ? -18 : 0, attributionControl:false });
+      map = new maplibre.Map({ container:host, style:basemapStyle(operationsMode, scope), center:focus ?? (scope === "global" ? [5,18] : [-75.3705,40.6259]), zoom:focus ? focusZoom ?? 12 : scope === "global" ? 1.75 : 12.4, pitch: threeD && scope === "local" ? 52 : 0, bearing: threeD && scope === "local" ? -18 : 0, attributionControl:false }); mapRef.current = map;
       map.addControl(new maplibre.NavigationControl({ showCompass:true }), "bottom-right"); map.addControl(new maplibre.AttributionControl({ compact:true }), "bottom-right");
       map.on("moveend", () => { if (map) { const c = map.getCenter(); viewportRef.current?.({center:[c.lng,c.lat], zoom:map.getZoom()}); } });
       map.on("load", async () => { if (!map || !alive) return;
@@ -65,7 +65,16 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
           const eventGeojson: GeoJSON.FeatureCollection = { type:"FeatureCollection", features:events.map((event) => ({ type:"Feature", geometry:{type:"Point",coordinates:event.center}, properties:{ event_id:event.event_id, color:eventColor(event), alert_rank:event.alert_level === "red" ? 3 : event.alert_level === "orange" ? 2 : 1 } })) };
           map.addSource("official-global-events", {type:"geojson",data:eventGeojson});
           map.addLayer({id:"official-global-events-halo",type:"circle",source:"official-global-events",paint:{"circle-radius":["interpolate",["linear"],["get","alert_rank"],1,8,2,11,3,14],"circle-color":["get","color"],"circle-opacity":.16,"circle-blur":.38}} as never);
-          map.addLayer({id:"official-global-events-point",type:"circle",source:"official-global-events",paint:{"circle-radius":["interpolate",["linear"],["get","alert_rank"],1,4.5,2,6,3,8],"circle-color":["get","color"],"circle-stroke-color":"#E8EEF5","circle-stroke-width":2,"circle-opacity":.96}} as never);
+          map.addLayer({id:"official-global-events-point",type:"circle",source:"official-global-events",paint:{"circle-radius":["case",["==",["get","event_id"],highlightRef.current ?? ""],11,["interpolate",["linear"],["get","alert_rank"],1,4.5,2,6,3,8]],"circle-color":["get","color"],"circle-stroke-color":"#E8EEF5","circle-stroke-width":["case",["==",["get","event_id"],highlightRef.current ?? ""],5,2],"circle-opacity":.96}} as never);
+          if (autoFitEvents) {
+            const valid = events.filter((event) => Number.isFinite(event.center[0]) && Number.isFinite(event.center[1]));
+            if (valid.length === 1) map.easeTo({ center: valid[0].center, zoom: 5, duration: 0 });
+            if (valid.length > 1) {
+              const bounds = new maplibre.LngLatBounds();
+              valid.forEach((event) => bounds.extend(event.center));
+              map.fitBounds(bounds, { padding: { top: 85, right: Math.min(560, window.innerWidth * .4), bottom: 85, left: 75 }, maxZoom: 5, duration: 0 });
+            }
+          }
           map.on("click", "official-global-events-point", (clickEvent) => {
             const eventId = String(clickEvent.features?.[0]?.properties?.event_id ?? "");
             const event = events.find((item) => item.event_id === eventId);
@@ -82,8 +91,8 @@ export function RiskMap({ events, scope, operationsMode, hazard, focus, focusZoo
           else { const groups=new Map<string,{hexagon:string;count:number;damage:number;total:number;building:number}>(); assets.forEach((a)=>{const key=latLngToCell(a.point[1],a.point[0],resolution); const group=groups.get(key)??{hexagon:key,count:0,damage:0,total:0,building:0}; group.count++; group.damage+=a.ratio; group.total+=a.total; group.building+=a.building; groups.set(key,group);}); const cells=[...groups.values()].map((g)=>({...g,value:metric==="damage"?g.damage/g.count:metric==="building"?g.building:g.total})); const max=Math.max(...cells.map((g)=>g.value),.0001); layers=[new H3HexagonLayer<typeof cells[number]>({id:"riskchain-loss-hexbins",data:cells,getHexagon:(g)=>g.hexagon,getFillColor:(g)=>rgb(g.damage/g.count),getElevation:(g)=>450*g.value/max,extruded:true,pickable:true,autoHighlight:true,material:{ambient:.45,diffuse:.6,shininess:28,specularColor:[255,255,255]}})]; }
           const overlay=new MapboxOverlay({interleaved:true,layers:layers as never[],getTooltip:({object}:{object?:Asset|{count:number;damage:number;total:number;value:number}})=>!object?null:"id" in object?{html:assetTip(object)}:{html:`<div class="deck-tooltip"><strong>Modelled asset hexbin</strong><span>${object.count} modelled asset${object.count===1?"":"s"}</span><hr/><span>${label(metric)} <b>${shown(object.value,metric)}</b></span><span>Mean damage <b>${(object.damage/object.count*100).toFixed(1)}%</b></span><span>Total loss <b>${usd(object.total)}</b></span><em>Aggregate of demo assets only</em></div>`}}); map.addControl(overlay as unknown as import("maplibre-gl").IControl); } catch { /* marker fallback stays usable */ }
       });
-    }; void start(); return () => { alive=false; map?.remove(); host?.replaceChildren(); };
-  }, [analysisLayer,analysisOpacity,assets,events,focus,focusZoom,hazard,metric,operationsMode,resolution,scope,showDemoLayer,threeD,view,visualResults]);
+    }; void start(); return () => { alive=false; if (mapRef.current === map) mapRef.current = null; map?.remove(); host?.replaceChildren(); };
+  }, [analysisLayer,analysisOpacity,assets,autoFitEvents,events,focus,focusZoom,hazard,metric,operationsMode,resolution,scope,showDemoLayer,threeD,view,visualResults]);
   return <><div ref={ref} className="risk-map" role="application" aria-label="Interactive catastrophe risk map" />{scope === "local" && <div className="map-visual-controls" aria-label="Map visualisation controls"><button className={threeD?"active":""} onClick={()=>setThreeD(!threeD)} aria-pressed={threeD}>3D context</button>{visualResults && <><div className="result-view-toggle" role="group" aria-label="Modelled result view">{(["markers","columns","hexbins"] as View[]).map((next)=><button key={next} className={view===next?"active":""} onClick={()=>setView(next)} aria-pressed={view===next}>{next==="markers"?"Markers":next==="columns"?"Columns":"Hexbins"}</button>)}</div>{view!=="markers" && <div className="result-view-options"><label>Metric<select value={metric} onChange={(e)=>setMetric(e.target.value as Metric)}><option value="damage">Mean damage ratio</option><option value="building">Building loss</option><option value="total">Total loss</option></select></label>{view==="hexbins" && <label>H3 resolution<select value={resolution} onChange={(e)=>setResolution(Number(e.target.value))}><option value={8}>8 · broader</option><option value={9}>9 · default</option><option value={10}>10 · finer</option></select></label>}<div className="result-map-legend"><span>Damage ratio</span><i/><small>low</small><small>high</small></div><p>Height is relative {label(metric).toLowerCase()}. Empty areas have no modelled values.</p></div>}</>}{threeD && <small>Visual terrain only — not a hazard surface.</small>}</div>}</>;
 }
 export type { MapViewport, Selection as MapSelection };

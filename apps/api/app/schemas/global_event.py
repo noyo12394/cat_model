@@ -63,3 +63,13 @@ class GlobalEventsResponse(BaseModel):
     last_successful_poll_at: datetime | None = None
     query_endpoint: HttpUrl | None = None
     query_parameters: dict[str, str | int] = Field(default_factory=dict)
+    local_filters: dict[str, str | int] = Field(default_factory=dict)
+    feed_message: str | None = None
+    response_mode: Literal[
+        "upstream",
+        "memory_cache",
+        "partial_upstream",
+        "checked_in_snapshot",
+        "none",
+    ] = "upstream"
+    snapshot_retrieved_at: datetime | None = None

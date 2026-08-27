@@ -1,11 +1,21 @@
 {
   "slug": "kentucky-tornado-outbreak-2021", "name": "December 2021 tornado outbreak", "hazard": "severe convective / tornado", "hazard_code": "TO", "country": "USA", "region": "Central and southern United States", "start_date": "2021-12-10", "end_date": "2021-12-11", "center": [-88.64, 36.74],
+  "center_label": "NWS survey reference near Mayfield, Kentucky",
+  "center_source_id": "nws-surveys",
+  "map_zoom": 5.5,
+  "footprint_geometry_reference": { "label": "NWS damage-survey tracks and points", "source_id": "nws-surveys", "status": "reference_only" },
   "headline_loss": "Over $4.3 billion economic impact (nominal 2021 USD)",
   "insured_loss": { "display": "not available from source", "currency": "USD", "loss_year": 2021, "inflation_basis": "nominal", "source_ids": [] },
   "economic_loss": { "display": "over $4.3 billion", "currency": "USD", "loss_year": 2021, "inflation_basis": "nominal 2021 USD", "source_ids": ["nws-assessment"] },
   "datasets": [
     { "slug": "damage-surveys", "name": "NWS damage survey tracks", "provenance": "observed", "resolution": "survey track and damage points", "vintage": "2021 with later survey revisions", "source_id": "nws-surveys", "unit": "EF rating and path miles", "denominator": "surveyed tornado", "geometry_status": "reference_only" },
-    { "slug": "storm-reports", "name": "SPC storm reports", "provenance": "officially reported", "resolution": "preliminary report point", "vintage": "2021-12-10/11", "source_id": "spc-reports", "unit": "report count", "denominator": "official report", "geometry_status": "reference_only" }
+    { "slug": "storm-reports", "name": "SPC storm reports", "provenance": "officially reported", "resolution": "preliminary report point", "vintage": "2021-12-10/11", "source_id": "spc-reports", "unit": "report count", "denominator": "official report", "geometry_status": "reference_only" },
+    { "slug": "impact-summary", "name": "NWS service and impact assessment", "provenance": "officially reported", "resolution": "multi-state outbreak summary", "vintage": "2022 service assessment", "source_id": "nws-assessment", "unit": "nominal 2021 USD, people, and narrative impacts", "denominator": "outbreak total", "geometry_status": "not_available" }
+  ],
+  "related_reading": [
+    { "title": "NWS tornado damage survey summaries", "url": "https://www.weather.gov/crh/dec112021", "source_id": "nws-surveys" },
+    { "title": "NWS Joint Regional Service Assessment", "url": "https://www.weather.gov/media/publications/assessments/NWS_Joint_Regional_Service_Assessment_Dec_10-11_2021.pdf", "source_id": "nws-assessment" },
+    { "title": "NOAA Storm Prediction Center storm reports", "url": "https://www.spc.noaa.gov/climo/reports/", "source_id": "spc-reports" }
   ],
   "sources": [
     { "id": "nws-surveys", "name": "NWS Tornado Damage Survey Summaries", "url": "https://www.weather.gov/crh/dec112021", "retrieved_at": "2026-08-26", "license": "NOAA/NWS public data", "panels": ["map", "density", "download"] },

@@ -256,7 +256,7 @@ export function ModelBuilder({ location, onRequestLocation, onDemo, onResult, on
       </div>}
       {!loadingEvents && catalogOnlyCount > 0 && <div className="catalog-note"><AlertCircle size={14} /><span><strong>{catalogOnlyCount} catalog record{catalogOnlyCount === 1 ? "" : "s"} hidden</strong>{hazard === "earthquake" ? "Epicentres without a published ShakeMap are not runnable impact areas." : "Alerts without a published polygon are not runnable spatial screen areas."}</span></div>}
       {!loadingEvents && runnableEvents.length === 0 && <div className="workflow-message"><AlertCircle size={15} /><span>{catalog?.message ?? "The provider returned no event with a usable footprint. Try another connected mode or date range."}</span></div>}
-      {mode === "historical" && <p className="historical-scope-note">The USGS connection runs only events with published ShakeMap geometry. Flood, cyclone and wildfire archives remain visible in Genome Lab and the linked official sources, but are not silently converted into impact footprints.</p>}
+      {mode === "historical" && <p className="historical-scope-note">The USGS connection runs only events with published ShakeMap geometry. Flood, cyclone and wildfire archives remain available in Historic and their linked official sources, but are not silently converted into impact footprints.</p>}
       {selectedEvent && <div className="event-provenance">
         <strong>{selectedEvent.provider} · {selectedEvent.classification}</strong>
         <span>Updated {selectedEvent.update_time ? new Date(selectedEvent.update_time).toLocaleString() : "not reported"}</span>

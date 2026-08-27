@@ -5,13 +5,18 @@ type Props = {
   currency?: string;
   markedReturnPeriods?: number[];
   view: "cumulative" | "exceedance";
+  observationUnit?: string;
+  aal?: number;
+  varValue?: number;
 };
 
-export function LossCurve({ losses, currency = "USD", markedReturnPeriods = [100, 250], view }: Props) {
-  if (losses.length < 2) return <div className="historic-unavailable"><strong>Curve not available from source</strong><span>The selected official dataset does not publish a compatible sorted loss array. EarthPulse does not synthesize one.</span></div>;
+export function LossCurve({ losses, currency = "USD", markedReturnPeriods = [100, 250], view, observationUnit = "source observation", aal, varValue }: Props) {
+  if (losses.length < 2) return <div className="historic-unavailable"><strong>Curve not available from source</strong><span>The selected official dataset does not publish a compatible sorted loss array. EarthPulse does not synthesize one.</span><small>Y-axis units: {currency}, source basis · denominator: {observationUnit} · probability convention: empirical annual exceedance probability requires a sourced annual-loss sample.</small></div>;
   const sorted = [...losses].sort((a, b) => a - b);
-  const max = sorted.at(-1) || 1;
-  const points = sorted.map((loss, index) => {
+  const cumulative = sorted.reduce<number[]>((values, loss) => [...values, loss + (values.at(-1) ?? 0)], []);
+  const plotted = view === "cumulative" ? cumulative : [...sorted].reverse();
+  const max = Math.max(...plotted, 1);
+  const points = plotted.map((loss, index) => {
     const x = 42 + (index / Math.max(1, sorted.length - 1)) * 510;
     const y = 210 - (loss / max) * 170;
     return `${x},${y}`;
@@ -25,6 +30,6 @@ export function LossCurve({ losses, currency = "USD", markedReturnPeriods = [100
       <text x="245" y="242">{view === "cumulative" ? "Ranked observation / geographic unit" : "Annual exceedance probability (right tail = lower probability)"}</text>
       <text transform="translate(13 178) rotate(-90)">Loss ({currency}, source basis)</text>
     </svg>
-    <figcaption>{view === "cumulative" ? "Cumulative loss — source-supplied ordering" : "Modelled exceedance probability — tail beyond VaR shaded; AAL shown only when supplied"}</figcaption>
+    <figcaption>{view === "cumulative" ? `Cumulative loss — ascending source observations; denominator: ${observationUnit}` : `Empirical exceedance probability — Weibull plotting position rank/(n+1); tail beyond VaR shaded${aal === undefined ? "; AAL not supplied" : `; AAL ${aal} ${currency}`}${varValue === undefined ? "; VaR not supplied" : `; VaR ${varValue} ${currency}`}`}</figcaption>
   </figure>;
 }

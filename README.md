@@ -90,7 +90,9 @@ unavailable.
 
 ## Catastrophe Genome Lab
 
-The **Genome Lab** is an optional visual-navigation layer in the web workspace.
+The **Genome Lab** is retained as an optional visual-navigation layer and is
+disabled by default behind `NEXT_PUBLIC_FF_GENOME_LAB`. Its route returns 404
+unless that flag is explicitly enabled.
 Its 3D atlas uses the live GDACS event centres already retrieved by the app and
 a separate, source-linked catalogue of 30 historical event metadata records.
 The accompanying 30-trait helix and nearest-neighbour comparison are

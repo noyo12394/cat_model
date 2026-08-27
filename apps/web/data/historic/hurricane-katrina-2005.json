@@ -1,0 +1,131 @@
+{
+  "slug": "hurricane-katrina-2005",
+  "name": "Hurricane Katrina",
+  "hazard": "tropical cyclone",
+  "hazard_code": "TC",
+  "country": "USA",
+  "region": "Florida and the northern Gulf Coast",
+  "start_date": "2005-08-23",
+  "end_date": "2005-08-30",
+  "center": [-89.6, 29.3],
+  "center_label": "NHC best-track Louisiana landfall near Buras",
+  "center_source_id": "nhc-katrina",
+  "map_zoom": 5.2,
+  "footprint_geometry_reference": {
+    "label": "NHC HURDAT2 six-hourly best track and Tropical Cyclone Report",
+    "source_id": "hurdat2",
+    "status": "reference_only"
+  },
+  "headline_loss": "$97.4–145.5 billion total damage (90% interval, nominal 2005 USD)",
+  "insured_loss": {
+    "display": "$40.6 billion (PCS industry estimate cited by NOAA/NHC)",
+    "currency": "USD",
+    "loss_year": 2005,
+    "inflation_basis": "nominal 2005 USD",
+    "source_ids": ["nhc-katrina"]
+  },
+  "economic_loss": {
+    "display": "$97.4–145.5 billion (90% confidence interval; $125 billion midpoint)",
+    "currency": "USD",
+    "loss_year": 2005,
+    "inflation_basis": "nominal 2005 USD",
+    "source_ids": ["nhc-katrina", "ncei-katrina"]
+  },
+  "datasets": [
+    {
+      "slug": "best-track",
+      "name": "NHC best track",
+      "provenance": "officially reported",
+      "resolution": "six-hourly positions plus landfall fixes",
+      "vintage": "HURDAT2 1851–2025 release",
+      "source_id": "hurdat2",
+      "unit": "degrees, knots, and hPa",
+      "denominator": "best-track observation",
+      "geometry_status": "reference_only"
+    },
+    {
+      "slug": "wind-and-surge-summary",
+      "name": "Wind and storm-surge summary",
+      "provenance": "officially reported",
+      "resolution": "storm-level observations and impact narrative",
+      "vintage": "NHC report revised 2023-01-04",
+      "source_id": "nhc-katrina",
+      "unit": "knots, hPa, feet, and narrative impacts",
+      "denominator": "reported observation or affected location",
+      "geometry_status": "reference_only"
+    },
+    {
+      "slug": "impact-summary",
+      "name": "NOAA impact and loss summary",
+      "provenance": "officially reported",
+      "resolution": "United States event total",
+      "vintage": "2005 loss year; source methodology current at retrieval",
+      "source_id": "ncei-katrina",
+      "unit": "nominal 2005 USD and fatalities",
+      "denominator": "event total",
+      "geometry_status": "not_available"
+    },
+    {
+      "slug": "fema-disaster-record",
+      "name": "FEMA disaster declaration record",
+      "provenance": "officially reported",
+      "resolution": "federal disaster declaration and designated areas",
+      "vintage": "DR-1603-LA record current at retrieval",
+      "source_id": "fema-1603",
+      "unit": "declaration record",
+      "denominator": "designated jurisdiction or program",
+      "geometry_status": "reference_only"
+    }
+  ],
+  "related_reading": [
+    {
+      "title": "NOAA/NHC Tropical Cyclone Report: Hurricane Katrina",
+      "url": "https://www.nhc.noaa.gov/data/tcr/AL122005_Katrina.pdf",
+      "source_id": "nhc-katrina"
+    },
+    {
+      "title": "NOAA/NHC hurricane data archive and HURDAT2",
+      "url": "https://www.nhc.noaa.gov/data/",
+      "source_id": "hurdat2"
+    },
+    {
+      "title": "FEMA DR-1603-LA",
+      "url": "https://www.fema.gov/disaster/1603",
+      "source_id": "fema-1603"
+    }
+  ],
+  "sources": [
+    {
+      "id": "nhc-katrina",
+      "name": "NOAA/NHC Tropical Cyclone Report: Hurricane Katrina",
+      "url": "https://www.nhc.noaa.gov/data/tcr/AL122005_Katrina.pdf",
+      "retrieved_at": "2026-08-27",
+      "license": "U.S. Government work; NOAA data and publications are generally public domain",
+      "panels": ["overview", "map", "loss", "script"]
+    },
+    {
+      "id": "hurdat2",
+      "name": "NOAA/NHC Atlantic HURDAT2 best-track archive",
+      "url": "https://www.nhc.noaa.gov/data/",
+      "retrieved_at": "2026-08-27",
+      "license": "NOAA public data; retain archive metadata and attribution",
+      "panels": ["map", "download", "script"]
+    },
+    {
+      "id": "ncei-katrina",
+      "name": "NOAA NCEI Billion-Dollar Disaster: Hurricane Katrina",
+      "url": "https://www.ncei.noaa.gov/access/billions/report/20050825-20050830-tropical-cyclone",
+      "retrieved_at": "2026-08-27",
+      "license": "NOAA public data; cite NCEI methodology and access date",
+      "panels": ["loss", "overview", "sources"]
+    },
+    {
+      "id": "fema-1603",
+      "name": "FEMA DR-1603-LA Hurricane Katrina",
+      "url": "https://www.fema.gov/disaster/1603",
+      "retrieved_at": "2026-08-27",
+      "license": "U.S. Government public information; program data terms apply",
+      "panels": ["overview", "download", "sources"]
+    }
+  ]
+}

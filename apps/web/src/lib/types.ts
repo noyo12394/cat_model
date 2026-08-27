@@ -347,6 +347,10 @@ export interface GlobalEventsResponse {
   last_successful_poll_at?: string | null;
   query_endpoint?: string | null;
   query_parameters: Record<string, string | number>;
+  local_filters?: Record<string, string | number>;
+  feed_message?: string | null;
+  response_mode?: "upstream" | "memory_cache" | "partial_upstream" | "checked_in_snapshot" | "none";
+  snapshot_retrieved_at?: string | null;
 }
 
 export interface GlobalWatchItem {

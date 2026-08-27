@@ -1,0 +1,286 @@
+{
+  "schema_version": 1,
+  "snapshot_kind": "source_cited_cold_start_fallback",
+  "retrieved_at": "2026-08-27T04:10:20Z",
+  "coverage": {
+    "from": "2026-01-01",
+    "to": "2026-08-27",
+    "hazards_requested": ["EQ", "TC", "FL", "VO", "DR", "WF"],
+    "alerts_requested": ["green", "orange", "red"],
+    "complete": false,
+    "note": "A deliberately small, multi-hazard sample for cold-start continuity; it is not an exhaustive archive."
+  },
+  "source": {
+    "name": "Global Disaster Awareness and Coordination System, GDACS",
+    "request_url": "https://www.gdacs.org/gdacsapi/api/events/geteventlist/SEARCH?eventlist=EQ%3BTC%3BFL%3BVO%3BDR%3BWF&alertlevel=green%3Borange%3Bred&fromdate=2026-01-01&todate=2026-08-27",
+    "api_documentation_url": "https://www.gdacs.org/Documents/2025/GDACS_API_quickstart_v2.pdf",
+    "terms_url": "https://www.gdacs.org/Documents/2025/GDACS_Terms_of_use_Mar_25.pdf",
+    "license_note": "GDACS states that its data are free through its APIs and requests acknowledgement as 'Global Disaster Awareness and Coordination System, GDACS'. Data are provided as-is and must be verified against competent authorities."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [121.3517, -8.3101]},
+      "properties": {
+        "eventtype": "EQ",
+        "eventid": 1558059,
+        "name": "Earthquake in Indonesia",
+        "country": "Indonesia",
+        "alertlevel": "Red",
+        "alertscore": 3,
+        "fromdate": "2026-08-14T21:58:21",
+        "todate": "2026-08-14T21:58:21",
+        "datemodified": "2026-08-27T04:10:14",
+        "iscurrent": "false",
+        "source": "NEIC",
+        "severitydata": {"severity": 7.7, "severitytext": "Magnitude 7.7M, Depth:10km", "severityunit": "M"},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1558059&episodeid=1725109&eventtype=EQ",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=EQ&eventid=1558059&episodeid=1725109"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-1.0329, 44.8463]},
+      "properties": {
+        "eventtype": "WF",
+        "eventid": 1029628,
+        "name": "Forest fires in France",
+        "country": "France",
+        "alertlevel": "Red",
+        "alertscore": 3,
+        "fromdate": "2026-07-22T00:00:00",
+        "todate": "2026-08-01T00:00:00",
+        "datemodified": "2026-08-27T04:10:18",
+        "iscurrent": "false",
+        "source": "GWIS",
+        "severitydata": {"severity": 47910, "severitytext": "Red impact for forestfire in 47910 ha", "severityunit": "ha"},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1029628&episodeid=32&eventtype=WF",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=WF&eventid=1029628&episodeid=32"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [110.9725, 30.8276]},
+      "properties": {
+        "eventtype": "FL",
+        "eventid": 1104051,
+        "name": "Flood in China",
+        "country": "China",
+        "alertlevel": "Red",
+        "alertscore": 3,
+        "fromdate": "2026-07-25T01:00:00",
+        "todate": "2026-07-31T01:00:00",
+        "datemodified": "2026-08-11T10:53:22.900000",
+        "iscurrent": "false",
+        "source": "GLOFAS",
+        "severitydata": {"severity": 0, "severitytext": "Magnitude 0", "severityunit": ""},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1104051&episodeid=4&eventtype=FL",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=FL&eventid=1104051&episodeid=4"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [120.4, 28.7]},
+      "properties": {
+        "eventtype": "TC",
+        "eventid": 1001279,
+        "name": "Tropical Cyclone BAVI-26",
+        "country": "Guam, Northern Mariana Islands, Japan, Taiwan, China",
+        "alertlevel": "Red",
+        "alertscore": 3,
+        "fromdate": "2026-07-01T00:00:00",
+        "todate": "2026-07-11T18:00:00",
+        "datemodified": "2026-08-27T04:10:20",
+        "iscurrent": "false",
+        "source": "JTWC",
+        "severitydata": {"severity": 287.0352, "severitytext": "Tropical Storm (maximum wind speed of 287 km/h)", "severityunit": "km/h"},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1001279&episodeid=44&eventtype=TC",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC&eventid=1001279&episodeid=44"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [123.685, 13.257]},
+      "properties": {
+        "eventtype": "VO",
+        "eventid": 1000144,
+        "name": "Eruption  Mayon",
+        "country": "Philippines",
+        "alertlevel": "Orange",
+        "alertscore": 2,
+        "fromdate": "2026-07-16T01:59:00",
+        "todate": "2026-07-16T01:59:00",
+        "datemodified": "2026-07-16T08:01:21",
+        "iscurrent": "false",
+        "source": "TOKYO",
+        "severitydata": {"severity": 0, "severitytext": "Severity detail unavailable", "severityunit": ""},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1000144&episodeid=1&eventtype=VO",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=VO&eventid=1000144&episodeid=1"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [33.577, 1.115]},
+      "properties": {
+        "eventtype": "DR",
+        "eventid": 1027465,
+        "name": "Drought in Democratic Republic of Congo, Kenya, Tanzania, Uganda",
+        "country": "Democratic Republic of Congo, Kenya, Tanzania, Uganda",
+        "alertlevel": "Orange",
+        "alertscore": 2,
+        "fromdate": "2026-05-21T00:00:00",
+        "todate": "2026-08-24T00:00:00",
+        "datemodified": "2026-08-26T05:57:21",
+        "iscurrent": "false",
+        "source": "GDO",
+        "severitydata": {"severity": 159974, "severitytext": "Medium impact for agricultural drought in 159974 km2", "severityunit": "km2"},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1027465&episodeid=3&eventtype=DR",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=DR&eventid=1027465&episodeid=3"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [121.5726, 22.8442]},
+      "properties": {
+        "eventtype": "EQ",
+        "eventid": 1561994,
+        "name": "Earthquake in Taiwan",
+        "country": "Taiwan",
+        "alertlevel": "Green",
+        "alertscore": 1,
+        "fromdate": "2026-08-26T21:47:17",
+        "todate": "2026-08-26T21:47:17",
+        "datemodified": "2026-08-26T22:27:23",
+        "iscurrent": "true",
+        "source": "NEIC",
+        "severitydata": {"severity": 4.5, "severitytext": "Magnitude 4.5M, Depth:10km", "severityunit": "M"},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1561994&episodeid=1729418&eventtype=EQ",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=EQ&eventid=1561994&episodeid=1729418"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-125.9, 23.0]},
+      "properties": {
+        "eventtype": "TC",
+        "eventid": 1001309,
+        "name": "Tropical Cyclone ISELLE-26",
+        "country": "",
+        "alertlevel": "Green",
+        "alertscore": 1,
+        "fromdate": "2026-08-23T15:00:00",
+        "todate": "2026-08-27T03:00:00",
+        "datemodified": "2026-08-27T02:45:01",
+        "iscurrent": "true",
+        "source": "NOAA",
+        "severitydata": {"severity": 111.1104, "severitytext": "Tropical Depression (maximum wind speed of 111 km/h)", "severityunit": "km/h"},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1001309&episodeid=15&eventtype=TC",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=TC&eventid=1001309&episodeid=15"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [138.7823, -35.4468]},
+      "properties": {
+        "eventtype": "FL",
+        "eventid": 1104119,
+        "name": "Flood in Australia",
+        "country": "Australia",
+        "alertlevel": "Green",
+        "alertscore": 1,
+        "fromdate": "2026-08-24T01:00:00",
+        "todate": "2026-08-26T01:00:00",
+        "datemodified": "2026-08-26T15:00:05",
+        "iscurrent": "true",
+        "source": "GLOFAS",
+        "severitydata": {"severity": 0, "severitytext": "Magnitude 0", "severityunit": ""},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1104119&episodeid=1&eventtype=FL",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=FL&eventid=1104119&episodeid=1"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [14.999, 37.748]},
+      "properties": {
+        "eventtype": "VO",
+        "eventid": 1000142,
+        "name": "Eruption  Etna",
+        "country": "Italy",
+        "alertlevel": "Green",
+        "alertscore": 1,
+        "fromdate": "2026-07-06T04:00:00",
+        "todate": "2026-08-11T21:25:00",
+        "datemodified": "2026-08-12T08:07:52",
+        "iscurrent": "false",
+        "source": "TOULOUSE",
+        "severitydata": {"severity": 0, "severitytext": "Severity detail unavailable", "severityunit": ""},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1000142&episodeid=2&eventtype=VO",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=VO&eventid=1000142&episodeid=2"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [82.153, 48.107]},
+      "properties": {
+        "eventtype": "DR",
+        "eventid": 1027491,
+        "name": "Drought in China, Kazakhstan, Mongolia, Russia",
+        "country": "China, Kazakhstan, Mongolia, Russia",
+        "alertlevel": "Green",
+        "alertscore": 1,
+        "fromdate": "2026-05-01T00:00:00",
+        "todate": "2026-08-24T00:00:00",
+        "datemodified": "2026-08-26T05:57:20",
+        "iscurrent": "false",
+        "source": "GDO",
+        "severitydata": {"severity": 1129956, "severitytext": "Minor impact for agricultural drought in 1129956 km2", "severityunit": "km2"},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1027491&episodeid=5&eventtype=DR",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=DR&eventid=1027491&episodeid=5"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {"type": "Point", "coordinates": [-118.2495, 44.8431]},
+      "properties": {
+        "eventtype": "WF",
+        "eventid": 1031195,
+        "name": "Forest fires in United States",
+        "country": "United States",
+        "alertlevel": "Green",
+        "alertscore": 1,
+        "fromdate": "2026-08-23T00:00:00",
+        "todate": "2026-08-26T00:00:00",
+        "datemodified": "2026-08-27T03:03:28",
+        "iscurrent": "true",
+        "source": "GWIS",
+        "severitydata": {"severity": 5091, "severitytext": "Green impact for forestfire in 5091 ha", "severityunit": "ha"},
+        "url": {
+          "report": "https://www.gdacs.org/report.aspx?eventid=1031195&episodeid=1&eventtype=WF",
+          "geometry": "https://www.gdacs.org/gdacsapi/api/polygons/getgeometry?eventtype=WF&eventid=1031195&episodeid=1"
+        }
+      }
+    }
+  ]
+}

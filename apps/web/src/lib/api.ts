@@ -49,6 +49,9 @@ export type GlobalEventQuery = {
   hazard?: string;
   region?: string;
   q?: string;
+  from?: string;
+  to?: string;
+  min_impact?: number;
   start_date?: string;
   end_date?: string;
   force?: boolean;

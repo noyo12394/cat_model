@@ -39,6 +39,8 @@ class AdapterResponse(Generic[T]):
     source_url: str | None = None
     request_url: str | None = None
     request_params: dict[str, str | int] = field(default_factory=dict)
+    response_mode: str = "upstream"
+    snapshot_retrieved_at: datetime | None = None
 
 
 async def safe_get_json(

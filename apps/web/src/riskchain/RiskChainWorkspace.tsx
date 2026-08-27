@@ -1,9 +1,9 @@
 "use client";
 
-import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Activity, AlertTriangle, BarChart3, BookOpen, Bot, CheckCircle2, ChevronDown, ClipboardCheck, Database, Dna,
-  Download, ExternalLink, FlaskConical, Globe2, GraduationCap, Layers,
+  Activity, AlertTriangle, ArrowUpDown, BarChart3, BookOpen, Bot, CalendarDays, CheckCircle2, ChevronDown, ClipboardCheck, Database, Dna,
+  Download, ExternalLink, FlaskConical, Globe2, GraduationCap, History, Layers,
   Menu, Moon, Newspaper, Radio, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Sun,
   UserRound, X,
 } from "lucide-react";
@@ -23,14 +23,19 @@ import { GeoAgentPanel, type GeoAgentLayerState } from "./GeoAgentPanel";
 import { WorkspaceMission } from "./WorkspaceMission";
 import { EventGenome } from "./EventGenome";
 import { CatastropheGenomeLab } from "./genome/CatastropheGenomeLab";
-import { CatModelingActivity } from "./CatModelingActivity";
+import { FireLab } from "./FireLab";
 
 type View = "explore" | "model" | "results" | "live" | "news" | "activity" | "learn" | "research" | "genome";
 type Panel = "none" | "layers" | "sources" | "results" | "ai" | "roadmap" | "account" | "genome";
+type LivePreset = LiveWindow | "custom";
+type LiveSort = "date" | "hazard" | "location" | "severity" | "source";
 
 const GENOME_LAB_ENABLED = process.env.NEXT_PUBLIC_FF_GENOME_LAB === "true";
 const LIVE_ROLLING_ENABLED = process.env.NEXT_PUBLIC_FF_LIVE_ROLLING !== "false";
 const HISTORIC_EVENTS_ENABLED = process.env.NEXT_PUBLIC_FF_HISTORIC_EVENTS !== "false";
+const WORKSHOP_START = "2026-01-01";
+const WORKSHOP_END = "2026-12-31";
+const EARLIEST_GDACS_DATE = "2000-01-01";
 
 const NAV: { id: View; label: string; icon: typeof Globe2 }[] = [
   { id: "explore", label: "Explore", icon: Globe2 },
@@ -72,9 +77,49 @@ function initialLiveParam(name: string, fallback: string) {
   return new URLSearchParams(window.location.search).get(name) || fallback;
 }
 
+function workshopEndDate() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (today < WORKSHOP_START) return WORKSHOP_START;
+  if (today > WORKSHOP_END) return WORKSHOP_END;
+  return today;
+}
+
+function offsetDate(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function rangeForPreset(preset: LivePreset) {
+  const to = workshopEndDate();
+  if (preset === "24h") return { from: to, to };
+  if (preset === "7d") return { from: offsetDate(to, -6), to };
+  if (preset === "30d") return { from: offsetDate(to, -29), to };
+  if (preset === "90d") return { from: offsetDate(to, -89), to };
+  return { from: WORKSHOP_START, to };
+}
+
+function initialLivePreset(): LivePreset {
+  const value = initialLiveParam("window", "ytd");
+  return (["24h", "7d", "30d", "90d", "ytd", "custom"] as string[]).includes(value) ? value as LivePreset : "ytd";
+}
+
+function initialLiveDate(side: "from" | "to") {
+  const fallback = rangeForPreset("ytd")[side];
+  if (typeof window === "undefined") return fallback;
+  const params = new URLSearchParams(window.location.search);
+  const legacy = side === "from" ? "start_date" : "end_date";
+  return params.get(side) || params.get(legacy) || rangeForPreset(initialLivePreset())[side];
+}
+
 function dateTime(value?: string | null) {
   if (!value) return "Not reported";
   return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }).format(new Date(value)) + " UTC";
+}
+
+function dateOnly(value?: string | null) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(value));
 }
 
 function dollars(value?: number | null) {
@@ -127,17 +172,21 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   const [research, setResearch] = useState<ResearchSearchResponse | null>(null);
   const [aiQuestion, setAiQuestion] = useState("Explain the largest uncertainty in this analysis.");
   const [aiAnswer, setAiAnswer] = useState<CopilotAnswer | null>(null);
-  const [liveWindow, setLiveWindow] = useState<LiveWindow>(() => {
-    const value = initialLiveParam("window", "30d");
-    return (["24h", "7d", "30d", "90d", "ytd"] as string[]).includes(value) ? value as LiveWindow : "30d";
-  });
+  const [liveWindow, setLiveWindow] = useState<LivePreset>(() => initialLivePreset());
   const [liveHazard, setLiveHazard] = useState(() => initialLiveParam("hazard", "all"));
   const [liveAlert, setLiveAlert] = useState(() => initialLiveParam("alert", "all"));
   const [liveRegion, setLiveRegion] = useState(() => initialLiveParam("region", ""));
   const [liveSearchDraft, setLiveSearchDraft] = useState(() => initialLiveParam("q", ""));
   const [liveSearch, setLiveSearch] = useState(() => initialLiveParam("q", ""));
-  const [liveStartDate, setLiveStartDate] = useState(() => initialLiveParam("start_date", ""));
-  const [liveEndDate, setLiveEndDate] = useState(() => initialLiveParam("end_date", ""));
+  const [liveStartDate, setLiveStartDate] = useState(() => initialLiveDate("from"));
+  const [liveEndDate, setLiveEndDate] = useState(() => initialLiveDate("to"));
+  const [liveMinImpact, setLiveMinImpact] = useState(() => Math.max(0, Number(initialLiveParam("min_impact", "0")) || 0));
+  const [liveSort, setLiveSort] = useState<LiveSort>(() => {
+    const value = initialLiveParam("sort", "date");
+    return (["date", "hazard", "location", "severity", "source"] as string[]).includes(value) ? value as LiveSort : "date";
+  });
+  const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null);
+  const [tapeEvents, setTapeEvents] = useState<GlobalEvent[]>([]);
   const [showLiveQuery, setShowLiveQuery] = useState(false);
   const [liveLoading, setLiveLoading] = useState(false);
   const [eventListLimit, setEventListLimit] = useState(12);
@@ -162,13 +211,14 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   useEffect(() => {
     const hazardCode = ({ flood: "FL", cyclone: "TC", earthquake: "EQ", wildfire: "WF", drought: "DR", volcano: "VO" } as Record<string, string>)[liveHazard];
     const eventQuery: GlobalEventQuery = {
-      window: LIVE_ROLLING_ENABLED ? liveWindow : undefined,
+      window: LIVE_ROLLING_ENABLED && liveWindow !== "custom" ? liveWindow : undefined,
       hazard: LIVE_ROLLING_ENABLED ? hazardCode : undefined,
       alert: LIVE_ROLLING_ENABLED ? liveAlert : undefined,
       region: LIVE_ROLLING_ENABLED ? liveRegion : undefined,
       q: LIVE_ROLLING_ENABLED ? liveSearch : undefined,
-      start_date: LIVE_ROLLING_ENABLED ? liveStartDate : undefined,
-      end_date: LIVE_ROLLING_ENABLED ? liveEndDate : undefined,
+      from: LIVE_ROLLING_ENABLED ? liveStartDate : undefined,
+      to: LIVE_ROLLING_ENABLED ? liveEndDate : undefined,
+      min_impact: LIVE_ROLLING_ENABLED && liveMinImpact > 0 ? liveMinImpact : undefined,
     };
     let cancelled = false;
     const load = async () => {
@@ -186,17 +236,29 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
     const refresh = window.setInterval(() => void load(), 300_000);
     if (view === "live") {
       const params = new URLSearchParams();
+      params.set("view", "live");
       params.set("window", liveWindow);
+      params.set("from", liveStartDate);
+      params.set("to", liveEndDate);
       if (liveHazard !== "all") params.set("hazard", liveHazard);
       if (liveAlert !== "all") params.set("alert", liveAlert);
       if (liveRegion) params.set("region", liveRegion);
       if (liveSearch) params.set("q", liveSearch);
-      if (liveStartDate) params.set("start_date", liveStartDate);
-      if (liveEndDate) params.set("end_date", liveEndDate);
+      if (liveMinImpact > 0) params.set("min_impact", String(liveMinImpact));
+      if (liveSort !== "date") params.set("sort", liveSort);
       window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
     }
     return () => { cancelled = true; window.clearInterval(refresh); };
-  }, [liveAlert, liveEndDate, liveHazard, liveRegion, liveSearch, liveStartDate, liveWindow, view]);
+  }, [liveAlert, liveEndDate, liveHazard, liveMinImpact, liveRegion, liveSearch, liveSort, liveStartDate, liveWindow, view]);
+
+  useEffect(() => {
+    const range = rangeForPreset("90d");
+    let cancelled = false;
+    void api.globalEvents({ window: "90d", from: range.from, to: range.to })
+      .then((response) => { if (!cancelled) setTapeEvents(response.events); })
+      .catch(() => { /* The tape stays hidden when no official snapshot is available. */ });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (view !== "news") return;
@@ -270,8 +332,35 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
     if (liveHazard === "drought") filtered = filtered.filter((event) => /^(dr|drought)$/i.test(event.event_type));
     if (liveHazard === "volcano") filtered = filtered.filter((event) => /^(vo|volcano)$/i.test(event.event_type));
     const alertRank: Record<string, number> = { red: 3, orange: 2, green: 1 };
-    return [...filtered].sort((a, b) => (alertRank[b.alert_level] ?? 0) - (alertRank[a.alert_level] ?? 0) || new Date(b.modified_at).getTime() - new Date(a.modified_at).getTime());
-  }, [events, liveHazard]);
+    if (liveMinImpact > 0) filtered = filtered.filter((event) => (event.alert_score ?? 0) >= liveMinImpact);
+    return [...filtered].sort((a, b) => {
+      if (liveSort === "hazard") return a.event_type.localeCompare(b.event_type) || new Date(b.from_date).getTime() - new Date(a.from_date).getTime();
+      if (liveSort === "location") return a.country.localeCompare(b.country) || a.name.localeCompare(b.name);
+      if (liveSort === "severity") return (alertRank[b.alert_level] ?? 0) - (alertRank[a.alert_level] ?? 0) || (b.alert_score ?? 0) - (a.alert_score ?? 0);
+      if (liveSort === "source") return a.source.localeCompare(b.source) || new Date(b.from_date).getTime() - new Date(a.from_date).getTime();
+      return new Date(b.from_date).getTime() - new Date(a.from_date).getTime();
+    });
+  }, [events, liveHazard, liveMinImpact, liveSort]);
+
+  const timelineBins = useMemo(() => {
+    const start = Date.parse(`${liveStartDate}T00:00:00Z`);
+    const end = Date.parse(`${liveEndDate}T23:59:59Z`);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
+    const binCount = 18;
+    const width = (end - start) / binCount;
+    const bins = Array.from({ length: binCount }, (_, index) => ({
+      from: new Date(start + index * width).toISOString().slice(0, 10),
+      to: new Date(index === binCount - 1 ? end : start + (index + 1) * width - 1).toISOString().slice(0, 10),
+      count: 0,
+    }));
+    visibleEvents.forEach((event) => {
+      const value = Date.parse(event.from_date);
+      if (!Number.isFinite(value) || value < start || value > end) return;
+      bins[Math.min(binCount - 1, Math.floor((value - start) / width))].count += 1;
+    });
+    return bins;
+  }, [liveEndDate, liveStartDate, visibleEvents]);
+  const timelineMax = Math.max(1, ...timelineBins.map((bin) => bin.count));
 
   const onSelect = useCallback((next: MapSelection) => {
     setSelection(next);
@@ -295,6 +384,14 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
       if (hazard === "all" || hazard === "cyclone" || hazard === "drought" || hazard === "volcano") setHazard("flood");
     }
     if (next === "live" || next === "news" || next === "explore" || (next === "genome" && GENOME_LAB_ENABLED) || next === "activity") setScope("global");
+  }
+
+  function applyLivePreset(preset: LivePreset) {
+    const range = rangeForPreset(preset);
+    setLiveWindow(preset);
+    setLiveStartDate(range.from);
+    setLiveEndDate(range.to);
+    setEventListLimit(12);
   }
 
   function openModelReadiness() {
@@ -324,7 +421,7 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
   async function refreshEvents() {
     const hazardCode = ({ flood: "FL", cyclone: "TC", earthquake: "EQ", wildfire: "WF", drought: "DR", volcano: "VO" } as Record<string, string>)[liveHazard];
     setLiveLoading(true);
-    try { setEventsResponse(await api.refreshGlobalEvents({ window: liveWindow, hazard: hazardCode, alert: liveAlert, region: liveRegion, q: liveSearch, start_date: liveStartDate, end_date: liveEndDate })); }
+    try { setEventsResponse(await api.refreshGlobalEvents({ window: liveWindow === "custom" ? undefined : liveWindow, hazard: hazardCode, alert: liveAlert, region: liveRegion, q: liveSearch, from: liveStartDate, to: liveEndDate, min_impact: liveMinImpact || undefined })); }
     catch { setNotice("The official GDACS feed could not be refreshed. Existing events were not relabelled as current."); }
     finally { setLiveLoading(false); }
   }
@@ -605,12 +702,12 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
       </header>
 
       <nav id="primary-navigation" className={`nav-tabs ${mobileNav ? "open" : ""}`} aria-label="Primary">
-        {NAV.map((item) => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => chooseView(item.id)}><item.icon size={17} />{item.label}</button>)}
+        {NAV.map((item) => <Fragment key={item.id}><button className={view === item.id ? "active" : ""} onClick={() => chooseView(item.id)}><item.icon size={17} />{item.label}</button>{item.id === "live" && HISTORIC_EVENTS_ENABLED && <Link href="/historic"><History size={17} />Historic</Link>}</Fragment>)}
       </nav>
 
       <section id="workspace" className="workspace">
         <RiskMap
-          events={geoLayers.events && scope === "global" ? visibleEvents : []}
+          events={geoLayers.events && scope === "global" && view !== "activity" ? visibleEvents : []}
           scope={scope}
           operationsMode={operationsMode || view === "model" || view === "live" || view === "news" || view === "genome"}
           hazard={hazard}
@@ -621,6 +718,8 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
           analysisLayer={geoLayers.analysis ? analysisRun?.hazard_layers[0] : null}
           analysisOpacity={geoLayers.analysisOpacity}
           showDemoLayer={geoLayers.demo}
+          highlightEventId={view === "live" ? highlightedEventId : null}
+          autoFitEvents={view === "live"}
           onSelect={onSelect}
           onViewportChange={setMapViewport}
         />
@@ -633,21 +732,19 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
 
         {view !== "genome" && view !== "activity" && <button className="workspace-about" onClick={() => setPanel("roadmap")}>About & roadmap</button>}
 
-        {(view === "explore" || view === "live") && <EventTape events={geoLayers.events ? visibleEvents : []} onSelect={onSelect} />}
+        {(view === "explore" || view === "live") && <EventTape events={geoLayers.events ? (view === "live" ? visibleEvents : tapeEvents) : []} onSelect={onSelect} />}
 
         {GENOME_LAB_ENABLED && view === "genome" && <CatastropheGenomeLab liveEvents={events} onSelectLive={(next) => { onSelect(next); setView("live"); }} />}
 
-        {view === "activity" && <CatModelingActivity
-          events={events}
-          eventsResponse={eventsResponse}
-          curves={curves}
-          onInspectEvent={(event) => {
-            onSelect({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 6 });
-            setView("live");
-          }}
-          onOpenLive={() => chooseView("live")}
-          onRunDemo={startGuidedDemo}
-          onOpenLesson={(lessonId) => { setView("learn"); void openLesson(lessonId); }}
+        {view === "activity" && <FireLab
+          analysis={analysisRun}
+          perimeterVisible={geoLayers.analysis && Boolean(analysisRun?.hazard_layers.length)}
+          perimeterOpacity={geoLayers.analysisOpacity}
+          onAnalysisChange={setAnalysisRun}
+          onPerimeterVisibleChange={(visible) => setGeoLayers((current) => ({ ...current, analysis: visible }))}
+          onPerimeterOpacityChange={(opacity) => setGeoLayers((current) => ({ ...current, analysisOpacity: opacity }))}
+          onIncidentFocus={(incident) => incident.center && setSelection({ id: incident.provider_event_id, title: incident.name, subtitle: incident.status, status: "Officially reported", source: incident.provider, center: incident.center, zoom: 8 })}
+          onNotice={setNotice}
         />}
 
         {view === "explore" && <section className="floating-card intro-card">
@@ -716,25 +813,37 @@ export function RiskChainWorkspace({ initialView = "explore" }: { initialView?: 
 
         {view === "live" && !selection && <section className="floating-card live-card">
           <div className="live-mode-toggle" aria-label="Event archive mode"><button className="active" type="button">Live</button>{HISTORIC_EVENTS_ENABLED && <Link href="/historic">Historic</Link>}</div>
-          <div className="card-heading"><div><span className="eyebrow">Official event picture</span><h2>Recent GDACS events</h2></div><div className="live-head-actions"><StatusBadge tone={eventsResponse?.feed_state === "feed_ok" ? "live" : "warning"}>{liveLoading ? "loading" : eventsResponse?.feed_state?.replaceAll("_", " ") ?? "checking"}</StatusBadge><button className="icon-button" onClick={() => void refreshEvents()} aria-label="Refresh official events" disabled={liveLoading}><RefreshCw size={15} /></button></div></div>
-          {LIVE_ROLLING_ENABLED && eventsResponse?.auto_widened && <p className="live-widen-notice"><AlertTriangle size={13} /> No events matched {eventsResponse.requested_window}; widened automatically to {eventsResponse.effective_window}.</p>}
-          {LIVE_ROLLING_ENABLED && <div className="live-window-tabs" aria-label="GDACS time window">{([['24h','24h'],['7d','7d'],['30d','30d'],['90d','90d'],['ytd','Year to date (2026)']] as [LiveWindow,string][]).map(([value,label]) => <button type="button" key={value} className={liveWindow === value ? "active" : ""} onClick={() => { setLiveWindow(value); setLiveStartDate(""); setLiveEndDate(""); setEventListLimit(12); }}>{label}</button>)}</div>}
-          <div className="live-stats"><div><strong>{eventsResponse?.counts.total ?? "—"}</strong><span>events</span></div><div><strong>{eventsResponse?.counts.red ?? "—"}</strong><span>red</span></div><div><strong>{eventsResponse?.counts.orange ?? "—"}</strong><span>orange</span></div></div>
-          <div className="live-freshness"><span><Database size={13} /> GDACS MHEWS API</span><span>Last successful poll {dateTime(eventsResponse?.last_successful_poll_at)}</span><span>Window {eventsResponse?.window_start ?? "—"} → {eventsResponse?.window_end ?? "—"}</span><span className={eventsResponse?.feed_state === "feed_degraded" ? "stale" : "fresh"}>{eventsResponse?.feed_state === "feed_degraded" ? "Cached / partial snapshot" : "Official feed response"}</span></div>
-          <div className="hazard-filter">{LIVE_FILTERS.map((item) => <button key={item.id} className={liveHazard === item.id ? "active" : ""} onClick={() => { setLiveHazard(item.id); setHazard(item.id); setEventListLimit(12); }}>{item.label}</button>)}</div>
+          <div className="card-heading"><div><span className="eyebrow">Official event date browser</span><h2>2026 catastrophe events</h2></div><div className="live-head-actions"><StatusBadge tone={eventsResponse?.feed_state === "feed_ok" || eventsResponse?.feed_state === "feed_ok_no_events" ? "live" : "warning"}>{liveLoading ? "loading" : eventsResponse?.feed_state?.replaceAll("_", " ") ?? "checking"}</StatusBadge><button className="icon-button" onClick={() => void refreshEvents()} aria-label="Retry and refresh official events" disabled={liveLoading}><RefreshCw size={15} /></button></div></div>
+
+          <section className="live-date-browser" aria-labelledby="date-browser-title">
+            <div className="live-date-title"><CalendarDays size={16} /><div><strong id="date-browser-title">Choose an event window</strong><small>The map, timeline, and table update together.</small></div></div>
+            <div className="live-date-fields"><label><span>From</span><input type="date" min={EARLIEST_GDACS_DATE} max={liveEndDate || WORKSHOP_END} value={liveStartDate} onChange={(event) => { setLiveWindow("custom"); setLiveStartDate(event.target.value); setEventListLimit(12); }} /></label><span aria-hidden="true">→</span><label><span>To</span><input type="date" min={liveStartDate || EARLIEST_GDACS_DATE} max={WORKSHOP_END} value={liveEndDate} onChange={(event) => { setLiveWindow("custom"); setLiveEndDate(event.target.value); setEventListLimit(12); }} /></label></div>
+            <div className="live-window-tabs" aria-label="Quick date ranges">{([['24h','Today'],['7d','Last 7 days'],['30d','Last 30 days'],['90d','Last 90 days'],['ytd','2026 year to date']] as [LivePreset,string][]).map(([value,label]) => <button type="button" key={value} className={liveWindow === value ? "active" : ""} onClick={() => applyLivePreset(value)}>{label}</button>)}<button type="button" className={liveWindow === "custom" ? "active" : ""} onClick={() => setLiveWindow("custom")}>Custom range</button></div>
+          </section>
+
+          {eventsResponse?.auto_widened && <p className="live-widen-notice"><AlertTriangle size={13} /> No events matched {eventsResponse.requested_window}; the service widened to {eventsResponse.effective_window}.</p>}
+          {eventsResponse?.feed_state === "feed_degraded" && <div className="live-state degraded"><AlertTriangle size={16} /><div><strong>Showing a cached or partial official snapshot</strong><span>The upstream feed did not fully respond. Last successful poll: {dateTime(eventsResponse.last_successful_poll_at)}.</span></div></div>}
+          {eventsResponse?.feed_state === "feed_error" && <div className="live-state error"><AlertTriangle size={16} /><div><strong>The official request failed</strong><span>{events.length ? `${events.length} cached records remain visible.` : "No cached records were available for this query."} {eventsResponse.error}</span><button type="button" onClick={() => void refreshEvents()}>Retry official feed</button></div></div>}
+
+          <div className="live-stats"><div><strong>{eventsResponse && eventsResponse.counts.total > 0 ? eventsResponse.counts.total : "—"}</strong><span>events</span></div><div><strong>{eventsResponse && eventsResponse.counts.total > 0 ? eventsResponse.counts.red || "None" : "—"}</strong><span>red</span></div><div><strong>{eventsResponse && eventsResponse.counts.total > 0 ? eventsResponse.counts.orange || "None" : "—"}</strong><span>orange</span></div></div>
+          <div className="live-freshness"><span><Database size={13} /> GDACS MHEWS API</span><span>Last successful poll {dateTime(eventsResponse?.last_successful_poll_at)}</span><span>Window {eventsResponse?.window_start ?? liveStartDate} → {eventsResponse?.window_end ?? liveEndDate}</span><span className={eventsResponse?.feed_state === "feed_degraded" ? "stale" : "fresh"}>{eventsResponse?.feed_state === "feed_degraded" ? "Cached / partial snapshot" : "Official feed response"}</span></div>
+
+          {timelineBins.length > 0 && <div className="live-timeline"><div><strong>Event timeline</strong><span>Click a bar to zoom into that interval</span></div><div className="timeline-bars" role="group" aria-label={`Event density from ${liveStartDate} to ${liveEndDate}`}>{timelineBins.map((bin) => <button type="button" key={`${bin.from}-${bin.to}`} title={`${bin.from} to ${bin.to}: ${bin.count} events`} aria-label={`${bin.count} events from ${bin.from} through ${bin.to}`} onClick={() => { setLiveWindow("custom"); setLiveStartDate(bin.from); setLiveEndDate(bin.to); setEventListLimit(12); }}><i style={{ height: `${Math.max(5, Math.round((bin.count / timelineMax) * 100))}%` }} /><span>{bin.count}</span></button>)}</div><div className="timeline-axis"><span>{liveStartDate}</span><span>{liveEndDate}</span></div></div>}
+
+          <div className="hazard-filter" aria-label="Hazard filter">{LIVE_FILTERS.map((item) => <button type="button" key={item.id} className={liveHazard === item.id ? "active" : ""} onClick={() => { setLiveHazard(item.id); setHazard(item.id); setEventListLimit(12); }}>{item.label}</button>)}</div>
           <div className="live-alert-filters" aria-label="GDACS alert filter">{["all", "green", "orange", "red"].map((level) => <button type="button" key={level} className={liveAlert === level ? `active ${level}` : level} onClick={() => setLiveAlert(level)}>{level === "all" ? "All alerts" : level}</button>)}</div>
           <form className="gdacs-search" onSubmit={(event) => { event.preventDefault(); setLiveSearch(liveSearchDraft.trim()); setEventListLimit(12); }}>
             <label><span>Search name, event ID, or country</span><input value={liveSearchDraft} onChange={(event) => setLiveSearchDraft(event.target.value)} placeholder="e.g. EQ-1561994 or Japan" /></label>
-            <label><span>Region</span><input value={liveRegion} onChange={(event) => setLiveRegion(event.target.value)} placeholder="Country or region" /></label>
-            <div><label><span>From</span><input type="date" value={liveStartDate} onChange={(event) => setLiveStartDate(event.target.value)} /></label><label><span>To</span><input type="date" value={liveEndDate} onChange={(event) => setLiveEndDate(event.target.value)} /></label></div>
-            <button className="primary" type="submit" disabled={liveLoading}><Search size={14} /> {liveLoading ? "Searching official feed…" : "Search GDACS"}</button>
+            <div><label><span>Country or region</span><input value={liveRegion} onChange={(event) => setLiveRegion(event.target.value)} placeholder="e.g. Japan" /></label><label><span>Minimum impact score (1–3)</span><input type="number" min="1" max="3" step="1" value={liveMinImpact || ""} onChange={(event) => setLiveMinImpact(Math.min(3, Math.max(0, Math.round(Number(event.target.value)) || 0)))} placeholder="Any" /></label></div>
+            <div className="gdacs-search-actions"><button className="primary" type="submit" disabled={liveLoading}><Search size={14} /> {liveLoading ? "Searching…" : "Search this range"}</button><button type="button" onClick={() => { setLiveWindow("custom"); setLiveStartDate(EARLIEST_GDACS_DATE); setLiveEndDate(workshopEndDate()); setLiveSearch(liveSearchDraft.trim()); setEventListLimit(12); }}>Search all dates</button></div>
           </form>
           <div className="live-controls"><button type="button" onClick={() => setShowLiveQuery((value) => !value)}>{showLiveQuery ? "Hide query" : "Show query"}</button><span>{Math.min(eventListLimit, visibleEvents.length)} of {visibleEvents.length} listed · map shows all</span></div>
           {showLiveQuery && <div className="gdacs-query"><strong>{eventsResponse?.query_endpoint ?? "GDACS endpoint unavailable"}</strong><pre>{JSON.stringify(eventsResponse?.query_parameters ?? {}, null, 2)}</pre></div>}
-          <div className="event-list">{visibleEvents.slice(0, eventListLimit).map((event) => <button key={event.event_id} onClick={() => onSelect({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 7 })}><i className={event.alert_level} /><span><strong>{event.name}</strong><small>{event.event_id} · {event.country} · {dateTime(event.from_date)}</small></span><ExternalLink size={15} /></button>)}</div>
+
+          {visibleEvents.length > 0 && <div className="live-event-table" role="table" aria-label="Official events in selected window"><div className="live-event-table-head" role="row">{([['date','Date'],['hazard','Hazard'],['location','Location'],['severity','Severity'],['source','Source']] as [LiveSort,string][]).map(([value,label]) => <button type="button" role="columnheader" key={value} className={liveSort === value ? "active" : ""} onClick={() => setLiveSort(value)}>{label}{liveSort === value && <ArrowUpDown size={11} />}</button>)}</div>{visibleEvents.slice(0, eventListLimit).map((event) => <button type="button" role="row" className={highlightedEventId === event.event_id ? "highlighted" : ""} key={event.event_id} onMouseEnter={() => setHighlightedEventId(event.event_id)} onMouseLeave={() => setHighlightedEventId(null)} onFocus={() => setHighlightedEventId(event.event_id)} onBlur={() => setHighlightedEventId(null)} onClick={() => onSelect({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 7 })}><span role="cell"><strong>{dateOnly(event.from_date)}</strong><small>{event.event_id}</small></span><span role="cell">{event.event_type}</span><span role="cell" title={`${event.name}, ${event.country}`}><strong>{event.name}</strong><small>{event.country}</small></span><span role="cell"><i className={event.alert_level} />{event.alert_level}{event.alert_score == null ? "" : ` · ${event.alert_score}`}</span><span role="cell" title={event.source}>{event.source}</span></button>)}</div>}
           {eventListLimit < visibleEvents.length && <button className="event-load-more" type="button" onClick={() => setEventListLimit((value) => Math.min(value + 24, visibleEvents.length))}>Show 24 more official records</button>}
           {eventsResponse?.possibly_truncated && <p className="catalog-limit"><AlertTriangle size={13} /> The documented {eventsResponse.result_cap}-record retrieval cap was reached. Older matching GDACS records may exist.</p>}
-          {!liveLoading && !visibleEvents.length && <div className="empty-live rich"><strong>{eventsResponse?.feed_state === "feed_error" ? "GDACS request failed" : "No qualifying events in this window"}</strong><span>Feed: {eventsResponse?.source_name ?? "GDACS"}</span><span>Last successful poll: {dateTime(eventsResponse?.last_successful_poll_at)}</span><span>Window queried: {eventsResponse?.effective_window ?? liveWindow}</span><button type="button" onClick={() => setLiveWindow(liveWindow === "24h" ? "7d" : liveWindow === "7d" ? "30d" : liveWindow === "30d" ? "90d" : "ytd")}>Widen window</button>{eventsResponse?.error && <p>{eventsResponse.error}</p>}</div>}
+          {!liveLoading && !visibleEvents.length && eventsResponse?.feed_state !== "feed_error" && <div className="empty-live rich"><strong>The feed responded; no events qualified in this window</strong><span>Try a broader period or remove one filter. No event was invented to fill the view.</span><span>Window queried: {liveStartDate} → {liveEndDate}</span><button type="button" onClick={() => applyLivePreset(liveWindow === "24h" ? "7d" : liveWindow === "7d" ? "30d" : liveWindow === "30d" ? "90d" : "ytd")}>Widen the range</button></div>}
           <p className="microcopy">GDACS information supports awareness and coordination; follow national and local authorities for warnings.</p>
         </section>}
 
