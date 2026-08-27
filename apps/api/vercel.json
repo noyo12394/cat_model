@@ -10,11 +10,5 @@
       "source": "/(.*)",
       "destination": "/api/index"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/v1/live/warm",
-      "schedule": "*/10 * * * *"
-    }
   ]
 }

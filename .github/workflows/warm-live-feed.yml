@@ -1,0 +1,17 @@
+name: Warm live event feed
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm-live-feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Warm rolling GDACS cache
+        run: curl --fail --silent --show-error --retry 2 --max-time 60 https://cat-model-api.vercel.app/api/v1/live/warm
