@@ -1,35 +1,23 @@
 "use client";
 
-import { ArrowRight, CheckCircle2, Database, FlaskConical, MapPinned, Radio, Search, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, Database, FlaskConical, MapPinned, ShieldCheck } from "lucide-react";
 
 type Props = {
   mode: "explore" | "model";
   placeName?: string;
-  eventCount: number;
-  eventStatus?: string;
   hasDemoResult: boolean;
   hasAnalysisResult: boolean;
-  onFocusSearch: () => void;
-  onOpenLive: () => void;
+  demoLoading: boolean;
   onRunDemo: () => void;
   onOpenResults: () => void;
 };
 
-function statusLabel(status?: string) {
-  if (status === "live") return "official feed connected";
-  if (status === "unavailable") return "official feed unavailable";
-  return "checking official feed";
-}
-
 export function WorkspaceMission({
   mode,
   placeName,
-  eventCount,
-  eventStatus,
   hasDemoResult,
   hasAnalysisResult,
-  onFocusSearch,
-  onOpenLive,
+  demoLoading,
   onRunDemo,
   onOpenResults,
 }: Props) {
@@ -48,23 +36,20 @@ export function WorkspaceMission({
         <li className="active"><span>02</span><div><strong>Set the scenario</strong><small>Choose a connected hazard and authoritative event or return period.</small></div><Database size={15} /></li>
         <li><span>03</span><div><strong>Inspect the output</strong><small>Read the audit before interpreting a loss or exposure result.</small></div><ShieldCheck size={15} /></li>
       </ol>
-      {hasResult ? <button className="mission-primary" type="button" onClick={onOpenResults}><ShieldCheck size={16} /> Open latest result <ArrowRight size={15} /></button> : <button className="mission-secondary" type="button" onClick={onRunDemo}><FlaskConical size={16} /> Explore labelled flood demo <ArrowRight size={15} /></button>}
+      {hasResult ? <button className="mission-primary" type="button" onClick={onOpenResults}><ShieldCheck size={16} /> Open latest result <ArrowRight size={15} /></button> : <button className="mission-secondary" type="button" onClick={onRunDemo} disabled={demoLoading}><FlaskConical size={16} /> {demoLoading ? "Starting demo…" : "Explore labelled flood demo"} <ArrowRight size={15} /></button>}
       <small className="mission-footnote">The sample demo uses modelled inputs. It is not a current incident or a property appraisal.</small>
     </aside>;
   }
 
-  return <aside className="workspace-mission explore-mission" aria-label="Start a RiskChain workflow">
+  return <aside className="workspace-mission demo-mission" aria-label="Modelled demo, separate from event workspaces">
     <div className="mission-heading">
-      <span className="mission-kicker"><Radio size={14} /> Start with a question</span>
-      <span className={eventStatus === "live" ? "mission-ready" : "mission-pending"}>{statusLabel(eventStatus)}</span>
+      <span className="mission-kicker"><FlaskConical size={14} /> Modelled demo</span>
+      <span className="mission-modelled">Separate workspace</span>
     </div>
-    <h2>Three defensible ways in.</h2>
-    <p>Choose a workflow based on the evidence you actually have—not on a generic risk score.</p>
-    <div className="mission-options">
-      <button type="button" onClick={onOpenLive}><Radio size={17} /><span><strong>What is happening now?</strong><small>{eventCount.toLocaleString()} official event{eventCount === 1 ? "" : "s"} currently visible</small></span><ArrowRight size={15} /></button>
-      <button type="button" onClick={onFocusSearch}><Search size={17} /><span><strong>What can I analyse here?</strong><small>Locate an address, city, ZIP, or coordinates</small></span><ArrowRight size={15} /></button>
-      <button type="button" onClick={onRunDemo}><FlaskConical size={17} /><span><strong>How does the model work?</strong><small>Open a labelled flood demonstration with curves and loss views</small></span><ArrowRight size={15} /></button>
-    </div>
-    <div className="mission-evidence"><ShieldCheck size={15} /><span><strong>Evidence rule</strong>Observed, officially reported, modelled, and demo data never share the same label.</span></div>
+    <h2>See how the model works.</h2>
+    <p>Open a labelled Bethlehem flood demonstration with curves, loss views, and a complete audit trail.</p>
+    <div className="demo-separation-note"><ShieldCheck size={15} /><span><strong>Modelled inputs only</strong>This demonstration never appears as a Live or Historic event.</span></div>
+    <button className="mission-secondary" type="button" onClick={onRunDemo} disabled={demoLoading}><FlaskConical size={16} /> {demoLoading ? "Starting modelled demo…" : "Open modelled demo"} <ArrowRight size={15} /></button>
+    <small className="mission-footnote">Teaching example—not a current incident, observation, claim record, or property appraisal.</small>
   </aside>;
 }

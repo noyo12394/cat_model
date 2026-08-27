@@ -595,12 +595,6 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
     window.setTimeout(() => void executeDemoRun(), 0);
   }
 
-  function focusPlaceSearch() {
-    setLocationIntent(view === "model");
-    setNotice(null);
-    window.setTimeout(() => document.getElementById("global-place-search")?.focus(), 0);
-  }
-
   async function openLesson(id: string) {
     setLoading(true);
     try { setLesson(await api.learnLesson(id)); } catch { setNotice("Lesson detail is temporarily unavailable."); }
@@ -746,22 +740,21 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
         />}
 
         {view === "explore" && <section className="floating-card intro-card">
-          <StatusBadge tone="live">Map-first workspace</StatusBadge>
-          <h1>Understand catastrophe risk, one place at a time.</h1>
-          <p>For risk teams and public-sector planners: follow official events, test governed scenarios, and inspect every source, assumption, and limit.</p>
-          <div className="intro-actions"><button className="primary" onClick={() => chooseView("live")}><Radio size={17} /> See live events</button><button onClick={startGuidedDemo}><FlaskConical size={17} /> Explore modelled demo</button></div>
-          <p className="intro-helper">Runs the sample model and opens the result map with Markers, Columns, and Hexbins.</p>
+          <StatusBadge tone="live">Event workspaces</StatusBadge>
+          <h1>Start with live or historic events.</h1>
+          <p>Keep current official records and curated teaching cases in separate, source-backed views.</p>
+          <div className="intro-event-tabs" role="group" aria-label="Choose an event workspace">
+            <Link href="/?view=live" onNavigate={() => chooseView("live")}><Radio size={18} /><span><strong>Live Events</strong><small>Browse the 2026 official event feed</small></span></Link>
+            {HISTORIC_EVENTS_ENABLED && <Link href="/historic"><History size={18} /><span><strong>Historic Events</strong><small>Explore five curated U.S. cases</small></span></Link>}
+          </div>
           <div className="trust-row"><span><ShieldCheck size={15} /> Sources visible</span><span><CheckCircle2 size={15} /> Ranges, not false precision</span></div>
         </section>}
 
         {view === "explore" && !selection && <WorkspaceMission
           mode="explore"
-          eventCount={visibleEvents.length}
-          eventStatus={eventsResponse?.data_status}
           hasDemoResult={Boolean(run || modelLayer)}
           hasAnalysisResult={Boolean(analysisRun)}
-          onFocusSearch={focusPlaceSearch}
-          onOpenLive={() => chooseView("live")}
+          demoLoading={loading}
           onRunDemo={startGuidedDemo}
           onOpenResults={() => setPanel("results")}
         />}
@@ -781,12 +774,9 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
         {view === "model" && <WorkspaceMission
           mode="model"
           placeName={analysisLocation?.name}
-          eventCount={visibleEvents.length}
-          eventStatus={eventsResponse?.data_status}
           hasDemoResult={Boolean(run || modelLayer)}
           hasAnalysisResult={Boolean(analysisRun)}
-          onFocusSearch={focusPlaceSearch}
-          onOpenLive={() => chooseView("live")}
+          demoLoading={loading}
           onRunDemo={startGuidedDemo}
           onOpenResults={() => { setView("results"); setPanel("results"); }}
         />}
