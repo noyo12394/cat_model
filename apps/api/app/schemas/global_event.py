@@ -41,9 +41,9 @@ class GlobalEventsResponse(BaseModel):
     counts: GlobalEventCounts = Field(default_factory=GlobalEventCounts)
     fetched_at: datetime
     source_updated_at: datetime | None = None
-    source_name: str = "Global Disaster Alert and Coordination System (GDACS)"
+    source_name: str = "Global Disaster Alert and Coordination System, GDACS"
     source_url: HttpUrl = "https://www.gdacs.org/"
-    attribution: str = "Global Disaster Awareness and Coordination System, GDACS"
+    attribution: str = "Global Disaster Alert and Coordination System, GDACS"
     standards: list[str] = Field(default_factory=lambda: ["GeoJSON", "GDACS MHEWS API"])
     data_status: DataStatus
     stale: bool = False

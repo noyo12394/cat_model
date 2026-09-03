@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { EventCard } from "./EventCard";
 import { HistoricShell } from "./HistoricShell";
 import {
@@ -19,29 +19,56 @@ type Props = {
 };
 
 export function HistoricExplorer({ initialEventSlug, initialDatasetSlug, initialAction }: Props) {
-  const router = useRouter();
-  const event = initialEventSlug ? historicEvent(initialEventSlug) : undefined;
-  const dataset = event && initialDatasetSlug ? historicDataset(event, initialDatasetSlug) : undefined;
+  const [eventSlug, setEventSlug] = useState(initialEventSlug ?? "");
+  const [datasetSlug, setDatasetSlug] = useState(initialDatasetSlug ?? "");
+  const [actionValue, setActionValue] = useState<HistoricAction | "">(initialAction ?? "");
+  const event = eventSlug ? historicEvent(eventSlug) : undefined;
+  const dataset = event && datasetSlug ? historicDataset(event, datasetSlug) : undefined;
   const selectedSource = dataset ? event?.sources.find((source) => source.id === dataset.source_id) : undefined;
-  const action = initialAction ? HISTORIC_ACTIONS.find((item) => item.value === initialAction) : undefined;
+  const action = actionValue ? HISTORIC_ACTIONS.find((item) => item.value === actionValue) : undefined;
   const step: 1 | 2 | 3 = dataset ? 3 : event ? 2 : 1;
+
+  useEffect(() => {
+    const restoreFromUrl = () => {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      const nextEvent = parts[0] === "historic" ? decodeURIComponent(parts[1] ?? "") : "";
+      const nextDataset = parts[0] === "historic" ? decodeURIComponent(parts[2] ?? "") : "";
+      const nextAction = new URLSearchParams(window.location.search).get("action") ?? "";
+      setEventSlug(historicEvent(nextEvent) ? nextEvent : "");
+      const restoredEvent = historicEvent(nextEvent);
+      setDatasetSlug(restoredEvent && historicDataset(restoredEvent, nextDataset) ? nextDataset : "");
+      setActionValue(HISTORIC_ACTIONS.some((item) => item.value === nextAction) ? nextAction as HistoricAction : "");
+    };
+    window.addEventListener("popstate", restoreFromUrl);
+    return () => window.removeEventListener("popstate", restoreFromUrl);
+  }, []);
+
+  const updateUrl = (path: string) => window.history.pushState(null, "", path);
 
   const selectEvent = (slug: string) => {
     const nextEvent = historicEvent(slug);
-    router.push(nextEvent ? `/historic/${encodeURIComponent(nextEvent.slug)}` : "/historic", { scroll: false });
+    const nextSlug = nextEvent?.slug ?? "";
+    setEventSlug(nextSlug);
+    setDatasetSlug("");
+    setActionValue("");
+    updateUrl(nextEvent ? `/historic/${encodeURIComponent(nextSlug)}` : "/historic");
   };
 
   const selectDataset = (slug: string) => {
     if (!event) return;
     const nextDataset = historicDataset(event, slug);
-    router.push(nextDataset ? `/historic/${encodeURIComponent(event.slug)}/${encodeURIComponent(nextDataset.slug)}` : `/historic/${encodeURIComponent(event.slug)}`, { scroll: false });
+    const nextSlug = nextDataset?.slug ?? "";
+    setDatasetSlug(nextSlug);
+    setActionValue("");
+    updateUrl(nextDataset ? `/historic/${encodeURIComponent(event.slug)}/${encodeURIComponent(nextSlug)}` : `/historic/${encodeURIComponent(event.slug)}`);
   };
 
   const selectAction = (value: string) => {
     if (!event || !dataset) return;
     const nextAction = HISTORIC_ACTIONS.find((item) => item.value === value);
     const base = `/historic/${encodeURIComponent(event.slug)}/${encodeURIComponent(dataset.slug)}`;
-    router.push(nextAction ? `${base}?action=${nextAction.value}` : base, { scroll: false });
+    setActionValue(nextAction?.value ?? "");
+    updateUrl(nextAction ? `${base}?action=${nextAction.value}` : base);
   };
 
   return <HistoricShell step={step}>

@@ -7,6 +7,7 @@ import type { HistoricAction, HistoricDataset, HistoricEvent } from "./data";
 import { pipelineFor } from "./data";
 import { LossCurve } from "./LossCurve";
 import styles from "./HistoricExplorer.module.css";
+import { historicBasemapStyle, installMissingStyleImageFallback } from "@/lib/mapStyle";
 
 const HAZARD_SYMBOL: Record<string, string> = { EQ: "✦", TC: "◉", FL: "≈", WF: "▲", TO: "↯" };
 const HAZARD_COLOR: Record<string, string> = { EQ: "#b48cff", TC: "#4fa8ff", FL: "#49c5dd", WF: "#ff7a45", TO: "#f6a94a" };
@@ -161,15 +162,12 @@ function HistoricMap({ event, dataset, showReference, showDataset }: { event: Hi
       if (!alive) return;
       map = new maplibre.Map({
         container: host,
-        style: {
-          version: 8,
-          sources: { carto: { type: "raster", tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"], tileSize: 256, attribution: "© OpenStreetMap contributors © CARTO" } },
-          layers: [{ id: "carto", type: "raster", source: "carto" }],
-        },
+        style: historicBasemapStyle,
         center: event.center,
         zoom: event.map_zoom,
         attributionControl: { compact: true },
       });
+      installMissingStyleImageFallback(map);
       map.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
       map.on("load", () => {
         if (!map || !showReference) return;

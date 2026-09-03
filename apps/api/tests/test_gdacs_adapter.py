@@ -2,7 +2,7 @@ from datetime import date, timezone
 
 import pytest
 
-from app.adapters.gdacs import _map_feature, fetch_global_events
+from app.adapters.gdacs import _RECENT_FEED_URL, _map_feature, fetch_global_events, request_params
 from app.core.config import Settings
 
 
@@ -63,7 +63,9 @@ def test_gdacs_feature_normalizes_operational_metadata():
 
 @pytest.mark.asyncio
 async def test_gdacs_adapter_pages_and_deduplicates(monkeypatch):
-    async def fake_get(_url, *, params):
+    async def fake_get(url, *, params):
+        if url == _RECENT_FEED_URL:
+            return None
         page = params["pagenumber"]
         return {"features": [gdacs_feature(101)]} if page <= 2 else {"features": []}
 
@@ -73,14 +75,18 @@ async def test_gdacs_adapter_pages_and_deduplicates(monkeypatch):
     response = await fetch_global_events(Settings(), from_date=date(2026, 7, 1), to_date=date(2026, 7, 31), force=True)
     assert len(response.items) == 1
     assert response.items[0].event_id == "EQ-101"
-    assert "3 GDACS page(s)" in response.note
+    assert "1 GDACS page(s)" in response.note
     assert response.request_params["fromdate"] == "2026-07-01"
     assert response.request_params["todate"] == "2026-07-31"
+    assert "eventlist" not in response.request_params
+    assert "alertlevel" not in response.request_params
 
 
 @pytest.mark.asyncio
 async def test_gdacs_adapter_marks_failed_later_page_as_partial(monkeypatch):
-    async def fake_get(_url, *, params):
+    async def fake_get(url, *, params):
+        if url == _RECENT_FEED_URL:
+            return None
         return {"features": [gdacs_feature(150)]} if params["pagenumber"] == 1 else None
 
     monkeypatch.setattr("app.adapters.gdacs.safe_get_json", fake_get)
@@ -102,7 +108,9 @@ async def test_gdacs_adapter_marks_failed_later_page_as_partial(monkeypatch):
 async def test_gdacs_adapter_serves_exact_cached_snapshot_when_refresh_fails(monkeypatch):
     available = True
 
-    async def fake_get(_url, *, params):
+    async def fake_get(url, *, params):
+        if url == _RECENT_FEED_URL:
+            return None
         return {"features": []} if available else None
 
     monkeypatch.setattr("app.adapters.gdacs.safe_get_json", fake_get)
@@ -120,7 +128,9 @@ async def test_gdacs_adapter_serves_exact_cached_snapshot_when_refresh_fails(mon
 async def test_gdacs_adapter_uses_compatible_broad_cache_for_filtered_query(monkeypatch):
     available = True
 
-    async def fake_get(_url, *, params):
+    async def fake_get(url, *, params):
+        if url == _RECENT_FEED_URL:
+            return None
         if not available:
             return None
         return {
@@ -178,7 +188,7 @@ async def test_gdacs_adapter_cold_start_snapshot_is_real_filtered_and_labelled(m
 
 
 @pytest.mark.asyncio
-async def test_gdacs_adapter_serves_cold_snapshot_before_calling_upstream(monkeypatch):
+async def test_gdacs_adapter_checks_fast_feed_then_serves_cold_snapshot_without_search(monkeypatch):
     calls = 0
 
     async def should_not_run(_url, *, params):
@@ -195,11 +205,50 @@ async def test_gdacs_adapter_serves_cold_snapshot_before_calling_upstream(monkey
         hazards=("WF",),
         alerts=("red",),
     )
-    assert calls == 0
+    assert calls == 1
     assert response.status.value == "stale"
     assert response.response_mode == "checked_in_snapshot"
     assert [event.event_id for event in response.items] == ["WF-1029628"]
     assert "scheduled feed warmer" in (response.note or "")
+
+
+def test_gdacs_search_request_never_uses_semicolon_filters():
+    params = request_params(
+        date(2026, 8, 28),
+        date(2026, 9, 3),
+        ("EQ", "TC"),
+        ("green", "red"),
+        1,
+    )
+    assert params == {
+        "fromdate": "2026-08-28",
+        "todate": "2026-09-03",
+        "pagesize": 100,
+        "pagenumber": 1,
+    }
+
+
+@pytest.mark.asyncio
+async def test_recent_application_feed_returns_without_search_pagination(monkeypatch):
+    calls: list[tuple[str, dict]] = []
+
+    async def fake_get(url, *, params):
+        calls.append((url, params))
+        assert url == _RECENT_FEED_URL
+        return {"features": [gdacs_feature(901, from_date="2026-09-03T10:00:00Z")]}
+
+    monkeypatch.setattr("app.adapters.gdacs.safe_get_json", fake_get)
+    monkeypatch.setattr("app.adapters.gdacs._cache", {})
+    response = await fetch_global_events(
+        Settings(),
+        from_date=date(2026, 9, 3),
+        to_date=date(2026, 9, 3),
+        force=True,
+    )
+    assert response.status.value == "live"
+    assert response.response_mode == "upstream"
+    assert [event.event_id for event in response.items] == ["EQ-901"]
+    assert calls == [(_RECENT_FEED_URL, {})]
 
 
 @pytest.mark.asyncio

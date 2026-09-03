@@ -181,8 +181,8 @@ async function request<T>(path: string, init?: RequestInit, timeoutMs = 30_000, 
 export const api = {
   liveSummary: () => request<RegionSummary>("/live/summary"),
   liveEvents: () => request<LiveEventsResponse>("/live/events"),
-  globalEvents: (query: GlobalEventQuery = {}) => request<GlobalEventsResponse>(globalEventPath(query), undefined, 45_000),
-  refreshGlobalEvents: (query: GlobalEventQuery = {}) => request<GlobalEventsResponse>(globalEventPath({ ...query, force: true }), undefined, 45_000),
+  globalEvents: (query: GlobalEventQuery = {}) => request<GlobalEventsResponse>(globalEventPath(query), undefined, 12_000),
+  refreshGlobalEvents: (query: GlobalEventQuery = {}) => request<GlobalEventsResponse>(globalEventPath({ ...query, force: true }), undefined, 12_000),
   newsArticles: (
     hazard: NewsTopic = "all",
     hours = 24,

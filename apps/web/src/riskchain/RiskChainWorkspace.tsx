@@ -187,6 +187,7 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
   const [tapeEvents, setTapeEvents] = useState<GlobalEvent[]>([]);
   const [showLiveQuery, setShowLiveQuery] = useState(false);
   const [liveLoading, setLiveLoading] = useState(false);
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [eventListLimit, setEventListLimit] = useState(12);
   const [user, setUser] = useState<WorkspaceUser | null>(() => {
     if (typeof window === "undefined") return null;
@@ -223,40 +224,42 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
       setLiveLoading(true);
       try {
         const response = await api.globalEvents(eventQuery);
-        if (!cancelled) setEventsResponse(response);
+        if (!cancelled) {
+          setLiveError(null);
+          setEventsResponse(response);
+          if (!hazardCode && liveAlert === "all" && !liveRegion && !liveSearch && liveMinImpact === 0) {
+            setTapeEvents(response.events);
+          }
+        }
       } catch {
-        if (!cancelled) setNotice("The GDACS request failed. The last loaded snapshot remains visible where available.");
+        if (!cancelled) {
+          setLiveError("The official feed did not respond before the timeout. Retry to keep the last successfully loaded events visible.");
+          setNotice("The GDACS request failed. The last loaded snapshot remains visible where available.");
+        }
       } finally {
         if (!cancelled) setLiveLoading(false);
       }
     };
-    void load();
+    const firstLoad = window.setTimeout(() => void load(), 180);
     const refresh = window.setInterval(() => void load(), 300_000);
-    if (view === "live") {
-      const params = new URLSearchParams();
-      params.set("view", "live");
-      params.set("window", liveWindow);
-      params.set("from", liveStartDate);
-      params.set("to", liveEndDate);
-      if (liveHazard !== "all") params.set("hazard", liveHazard);
-      if (liveAlert !== "all") params.set("alert", liveAlert);
-      if (liveRegion) params.set("region", liveRegion);
-      if (liveSearch) params.set("q", liveSearch);
-      if (liveMinImpact > 0) params.set("min_impact", String(liveMinImpact));
-      if (liveSort !== "date") params.set("sort", liveSort);
-      window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
-    }
-    return () => { cancelled = true; window.clearInterval(refresh); };
-  }, [liveAlert, liveEndDate, liveHazard, liveMinImpact, liveRegion, liveSearch, liveSort, liveStartDate, liveWindow, view]);
+    return () => { cancelled = true; window.clearTimeout(firstLoad); window.clearInterval(refresh); };
+  }, [liveAlert, liveEndDate, liveHazard, liveMinImpact, liveRegion, liveSearch, liveStartDate, liveWindow]);
 
   useEffect(() => {
-    const range = rangeForPreset("90d");
-    let cancelled = false;
-    void api.globalEvents({ window: "90d", from: range.from, to: range.to })
-      .then((response) => { if (!cancelled) setTapeEvents(response.events); })
-      .catch(() => { /* The tape stays hidden when no official snapshot is available. */ });
-    return () => { cancelled = true; };
-  }, []);
+    if (view !== "live") return;
+    const params = new URLSearchParams();
+    params.set("view", "live");
+    params.set("window", liveWindow);
+    params.set("from", liveStartDate);
+    params.set("to", liveEndDate);
+    if (liveHazard !== "all") params.set("hazard", liveHazard);
+    if (liveAlert !== "all") params.set("alert", liveAlert);
+    if (liveRegion) params.set("region", liveRegion);
+    if (liveSearch) params.set("q", liveSearch);
+    if (liveMinImpact > 0) params.set("min_impact", String(liveMinImpact));
+    if (liveSort !== "date") params.set("sort", liveSort);
+    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  }, [liveAlert, liveEndDate, liveHazard, liveMinImpact, liveRegion, liveSearch, liveSort, liveStartDate, liveWindow, view]);
 
   useEffect(() => {
     if (view !== "news") return;
@@ -419,8 +422,14 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
   async function refreshEvents() {
     const hazardCode = ({ flood: "FL", cyclone: "TC", earthquake: "EQ", wildfire: "WF", drought: "DR", volcano: "VO" } as Record<string, string>)[liveHazard];
     setLiveLoading(true);
-    try { setEventsResponse(await api.refreshGlobalEvents({ window: liveWindow === "custom" ? undefined : liveWindow, hazard: hazardCode, alert: liveAlert, region: liveRegion, q: liveSearch, from: liveStartDate, to: liveEndDate, min_impact: liveMinImpact || undefined })); }
-    catch { setNotice("The official GDACS feed could not be refreshed. Existing events were not relabelled as current."); }
+    try {
+      setEventsResponse(await api.refreshGlobalEvents({ window: liveWindow === "custom" ? undefined : liveWindow, hazard: hazardCode, alert: liveAlert, region: liveRegion, q: liveSearch, from: liveStartDate, to: liveEndDate, min_impact: liveMinImpact || undefined }));
+      setLiveError(null);
+    }
+    catch {
+      setLiveError("The official feed refresh failed. Existing events remain visible but are not relabelled as current.");
+      setNotice("The official GDACS feed could not be refreshed. Existing events were not relabelled as current.");
+    }
     finally { setLiveLoading(false); }
   }
 
@@ -801,7 +810,7 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
 
         {view === "live" && !selection && <section className="floating-card live-card">
           <div className="live-mode-toggle" aria-label="Event archive mode"><button className="active" type="button">Live</button>{HISTORIC_EVENTS_ENABLED && <Link href="/historic">Historic</Link>}</div>
-          <div className="card-heading"><div><span className="eyebrow">Official event date browser</span><h2>2026 catastrophe events</h2></div><div className="live-head-actions"><StatusBadge tone={eventsResponse?.feed_state === "feed_ok" || eventsResponse?.feed_state === "feed_ok_no_events" ? "live" : "warning"}>{liveLoading ? "loading" : eventsResponse?.feed_state?.replaceAll("_", " ") ?? "checking"}</StatusBadge><button className="icon-button" onClick={() => void refreshEvents()} aria-label="Retry and refresh official events" disabled={liveLoading}><RefreshCw size={15} /></button></div></div>
+          <div className="card-heading"><div><span className="eyebrow">Official event date browser</span><h2>2026 catastrophe events</h2></div><div className="live-head-actions"><StatusBadge tone={eventsResponse?.feed_state === "feed_ok" || eventsResponse?.feed_state === "feed_ok_no_events" ? "live" : "warning"}>{liveLoading ? "loading" : liveError ? "feed error" : eventsResponse?.feed_state?.replaceAll("_", " ") ?? "ready"}</StatusBadge><button className="icon-button" onClick={() => void refreshEvents()} aria-label="Retry and refresh official events" disabled={liveLoading}><RefreshCw size={15} /></button></div></div>
 
           <section className="live-date-browser" aria-labelledby="date-browser-title">
             <div className="live-date-title"><CalendarDays size={16} /><div><strong id="date-browser-title">Choose an event window</strong><small>The map, timeline, and table update together.</small></div></div>
@@ -812,6 +821,7 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
           {eventsResponse?.auto_widened && <p className="live-widen-notice"><AlertTriangle size={13} /> No events matched {eventsResponse.requested_window}; the service widened to {eventsResponse.effective_window}.</p>}
           {eventsResponse?.feed_state === "feed_degraded" && <div className="live-state degraded"><AlertTriangle size={16} /><div><strong>Showing a cached or partial official snapshot</strong><span>The upstream feed did not fully respond. Last successful poll: {dateTime(eventsResponse.last_successful_poll_at)}.</span></div></div>}
           {eventsResponse?.feed_state === "feed_error" && <div className="live-state error"><AlertTriangle size={16} /><div><strong>The official request failed</strong><span>{events.length ? `${events.length} cached records remain visible.` : "No cached records were available for this query."} {eventsResponse.error}</span><button type="button" onClick={() => void refreshEvents()}>Retry official feed</button></div></div>}
+          {liveError && eventsResponse?.feed_state !== "feed_error" && <div className="live-state error"><AlertTriangle size={16} /><div><strong>The official request failed</strong><span>{liveError}</span><button type="button" onClick={() => void refreshEvents()}>Retry official feed</button></div></div>}
 
           <div className="live-stats"><div><strong>{eventsResponse && eventsResponse.counts.total > 0 ? eventsResponse.counts.total : "—"}</strong><span>events</span></div><div><strong>{eventsResponse && eventsResponse.counts.total > 0 ? eventsResponse.counts.red || "None" : "—"}</strong><span>red</span></div><div><strong>{eventsResponse && eventsResponse.counts.total > 0 ? eventsResponse.counts.orange || "None" : "—"}</strong><span>orange</span></div></div>
           <div className="live-freshness"><span><Database size={13} /> GDACS MHEWS API</span><span>Last successful poll {dateTime(eventsResponse?.last_successful_poll_at)}</span><span>Window {eventsResponse?.window_start ?? liveStartDate} → {eventsResponse?.window_end ?? liveEndDate}</span><span className={eventsResponse?.feed_state === "feed_degraded" ? "stale" : "fresh"}>{eventsResponse?.feed_state === "feed_degraded" ? "Cached / partial snapshot" : "Official feed response"}</span></div>
@@ -831,7 +841,7 @@ export function RiskChainWorkspace({ initialView = "explore", initialLiveQuery }
           {visibleEvents.length > 0 && <div className="live-event-table" role="table" aria-label="Official events in selected window"><div className="live-event-table-head" role="row">{([['date','Date'],['hazard','Hazard'],['location','Location'],['severity','Severity'],['source','Source']] as [LiveSort,string][]).map(([value,label]) => <button type="button" role="columnheader" key={value} className={liveSort === value ? "active" : ""} onClick={() => setLiveSort(value)}>{label}{liveSort === value && <ArrowUpDown size={11} />}</button>)}</div>{visibleEvents.slice(0, eventListLimit).map((event) => <button type="button" role="row" className={highlightedEventId === event.event_id ? "highlighted" : ""} key={event.event_id} onMouseEnter={() => setHighlightedEventId(event.event_id)} onMouseLeave={() => setHighlightedEventId(null)} onFocus={() => setHighlightedEventId(event.event_id)} onBlur={() => setHighlightedEventId(null)} onClick={() => onSelect({ id: event.event_id, title: event.name, subtitle: `${event.event_type} · ${event.country}`, status: "Officially reported", source: event.source, center: event.center, zoom: 7 })}><span role="cell"><strong>{dateOnly(event.from_date)}</strong><small>{event.event_id}</small></span><span role="cell">{event.event_type}</span><span role="cell" title={`${event.name}, ${event.country}`}><strong>{event.name}</strong><small>{event.country}</small></span><span role="cell"><i className={event.alert_level} />{event.alert_level}{event.alert_score == null ? "" : ` · ${event.alert_score}`}</span><span role="cell" title={event.source}>{event.source}</span></button>)}</div>}
           {eventListLimit < visibleEvents.length && <button className="event-load-more" type="button" onClick={() => setEventListLimit((value) => Math.min(value + 24, visibleEvents.length))}>Show 24 more official records</button>}
           {eventsResponse?.possibly_truncated && <p className="catalog-limit"><AlertTriangle size={13} /> The documented {eventsResponse.result_cap}-record retrieval cap was reached. Older matching GDACS records may exist.</p>}
-          {!liveLoading && !visibleEvents.length && eventsResponse?.feed_state !== "feed_error" && <div className="empty-live rich"><strong>The feed responded; no events qualified in this window</strong><span>Try a broader period or remove one filter. No event was invented to fill the view.</span><span>Window queried: {liveStartDate} → {liveEndDate}</span><button type="button" onClick={() => applyLivePreset(liveWindow === "24h" ? "7d" : liveWindow === "7d" ? "30d" : liveWindow === "30d" ? "90d" : "ytd")}>Widen the range</button></div>}
+          {!liveLoading && !liveError && !visibleEvents.length && eventsResponse?.feed_state !== "feed_error" && <div className="empty-live rich"><strong>The feed responded; no events qualified in this window</strong><span>Try a broader period or remove one filter. No event was invented to fill the view.</span><span>Window queried: {liveStartDate} → {liveEndDate}</span><button type="button" onClick={() => applyLivePreset(liveWindow === "24h" ? "7d" : liveWindow === "7d" ? "30d" : liveWindow === "30d" ? "90d" : "ytd")}>Widen the range</button></div>}
           <p className="microcopy">GDACS information supports awareness and coordination; follow national and local authorities for warnings.</p>
         </section>}
 

@@ -8,7 +8,6 @@ and a request with no usable fallback is ``UNAVAILABLE``.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import time
@@ -24,6 +23,8 @@ from app.schemas.global_event import GlobalEvent
 
 _PAGE_SIZE = 100
 _MAX_PAGES = 5
+_RECENT_FEED_DAYS = 4
+_RECENT_FEED_URL = "https://www.gdacs.org/contentdata/xml/gdacs_app_feed.json"
 _SUPPORTED_HAZARDS = ("EQ", "TC", "FL", "VO", "DR", "WF")
 _SUPPORTED_ALERTS = ("green", "orange", "red")
 _SNAPSHOT_PATH = Path(__file__).resolve().parents[1] / "data" / "live" / "gdacs_2026_ytd_snapshot.json"
@@ -82,8 +83,8 @@ def _map_feature(feature: dict) -> GlobalEvent | None:
         return GlobalEvent(
             event_id=f"{event_type}-{event_id}",
             event_type=event_type,
-            name=props.get("name") or props.get("description") or f"GDACS {event_type} event",
-            country=props.get("country") or "Location not specified",
+            name=props.get("name") or props.get("eventname") or props.get("description") or f"GDACS {event_type} event",
+            country=props.get("country") or ", ".join(props.get("affectedcountries") or []) or "Location not specified",
             alert_level=str(props.get("alertlevel") or "Green").lower(),
             alert_score=float(props["alertscore"]) if props.get("alertscore") is not None else None,
             severity_text=severity.get("severitytext") or "Severity detail unavailable",
@@ -108,10 +109,14 @@ def request_params(
     alerts: tuple[str, ...],
     page: int,
 ) -> dict[str, str | int]:
-    """Return the documented public GDACS search parameters verbatim."""
+    """Return one audit-safe GDACS request without unreliable list syntax.
+
+    The September 2026 endpoint accepts the documented date/page parameters,
+    but multi-value semicolon filters are not dependable. Hazard and alert
+    filters are therefore applied locally after retrieval.
+    """
+    del hazards, alerts
     return {
-        "eventlist": ";".join(hazards),
-        "alertlevel": ";".join(alerts),
         "fromdate": from_date.isoformat(),
         "todate": to_date.isoformat(),
         "pagesize": _PAGE_SIZE,
@@ -244,19 +249,29 @@ async def _fetch_pages(
     """
     payloads: list[dict] = []
     failed_page: int | None = None
+    previous_fingerprint: tuple[str, ...] | None = None
     for page in range(1, _MAX_PAGES + 1):
         params = request_params(start, end, hazards, alerts, page)
         payload = await safe_get_json(url, params=params)
         valid = isinstance(payload, dict) and isinstance(payload.get("features"), list)
-        if not valid and page == 1:
-            await asyncio.sleep(0)
-            payload = await safe_get_json(url, params=params)
-            valid = isinstance(payload, dict) and isinstance(payload.get("features"), list)
         if not valid:
             failed_page = page
             break
+        features = payload["features"]
+        fingerprint = tuple(
+            f"{feature.get('properties', {}).get('eventtype')}:{feature.get('properties', {}).get('eventid')}:{feature.get('properties', {}).get('episodeid')}"
+            for feature in features
+            if isinstance(feature, dict)
+        )
+        if fingerprint and fingerprint == previous_fingerprint:
+            _logger.warning("GDACS repeated page %s; stopping pagination to avoid a slow duplicate loop", page)
+            break
+        previous_fingerprint = fingerprint
         payloads.append(payload)
-        if len(payload["features"]) < _PAGE_SIZE:
+        if len(features) < _PAGE_SIZE:
+            break
+        mapped_page = [event for feature in features if (event := _map_feature(feature))]
+        if mapped_page and min(event.to_date.date() for event in mapped_page) < start:
             break
     return payloads, failed_page
 
@@ -283,6 +298,65 @@ async def fetch_global_events(
         return replace(cached.response, response_mode="memory_cache")
 
     url = f"{settings.gdacs_base_url.rstrip('/')}/events/geteventlist/SEARCH"
+    recent_payload = await safe_get_json(_RECENT_FEED_URL, params={})
+    if isinstance(recent_payload, dict) and isinstance(recent_payload.get("features"), list):
+        recent_events = [
+            event
+            for feature in recent_payload["features"]
+            if (event := _map_feature(feature))
+        ]
+        fallback, _, modes, snapshot_retrieved_at = _fallback_events(
+            start=start,
+            end=end,
+            hazards=hazards,
+            alerts=alerts,
+        )
+        combined = _filter_events(
+            _deduplicate([*recent_events, *fallback]),
+            start=start,
+            end=end,
+            hazards=hazards,
+            alerts=alerts,
+        )
+        recent_coverage_start = end - timedelta(days=_RECENT_FEED_DAYS - 1)
+        covers_window = start >= recent_coverage_start
+        if combined or covers_window:
+            partial = not covers_window
+            status = DataStatus.STALE if partial else DataStatus.LIVE
+            items = [
+                event.model_copy(update={"data_status": status})
+                for event in combined
+            ]
+            result = AdapterResponse(
+                source_name="GDACS",
+                status=status,
+                items=items,
+                retrieved_at=datetime.now(timezone.utc),
+                note=(
+                    f"{len(items)} official records matched the current GDACS application feed."
+                    if not partial
+                    else (
+                        f"{len(items)} official records matched the current GDACS application feed"
+                        f"{' plus ' + ' and '.join(modes) if modes else ''}. "
+                        "This fast response is current for recent events but may be incomplete for the full requested window."
+                    )
+                ),
+                source_url="https://www.gdacs.org/",
+                request_url=_RECENT_FEED_URL,
+                request_params={},
+                response_mode="partial_upstream" if partial else "upstream",
+                snapshot_retrieved_at=snapshot_retrieved_at,
+            )
+            _cache[cache_key] = _CacheEntry(
+                stored_at=now,
+                start=start,
+                end=end,
+                hazards=frozenset(hazards),
+                alerts=frozenset(alerts),
+                response=result,
+            )
+            return result
+
     if not force:
         fallback, retrieved_at, modes, snapshot_retrieved_at = _fallback_events(
             start=start,

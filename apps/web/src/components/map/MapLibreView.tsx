@@ -8,21 +8,11 @@ import { useMapData } from "./useMapData";
 import { facilityColor, facilityIcon } from "./facilityStyle";
 import type { GlobalEvent, RouteOption } from "@/lib/types";
 import { exposureColor } from "./facilityStyle";
+import { basemapStyle, installMissingStyleImageFallback } from "@/lib/mapStyle";
 
 const BETHLEHEM_CENTER: [number, number] = [-75.3705, 40.6259];
 
-const OSM_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO",
-    },
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }],
-};
+const OSM_STYLE = basemapStyle(true);
 
 export function MapLibreView({ route }: { route?: RouteOption[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,6 +40,7 @@ export function MapLibreView({ route }: { route?: RouteOption[] }) {
       zoom: 12,
       attributionControl: { compact: true },
     });
+    installMissingStyleImageFallback(map);
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
     mapRef.current = map;
 
