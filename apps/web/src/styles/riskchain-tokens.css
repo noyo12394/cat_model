@@ -1,0 +1,180 @@
+/* =============================================================================
+   RiskChain — "Catastrophe Terminal" design tokens
+   -----------------------------------------------------------------------------
+   A drop-in visual identity. It defines a token layer AND re-aliases the app's
+   existing CSS variable names (--bg, --surface, --text, --line, --blue, ...) so
+   adopting it is a one-line import — no component rewrites required.
+
+   ADOPTION (see docs/DESIGN_SYSTEM.md):
+     In apps/web/src/app/globals.css, immediately AFTER the two @import lines
+     and BEFORE the existing :root block, add:
+         @import "../styles/riskchain-tokens.css";
+     then delete the old `:root {…}` and `.riskchain-app.operations {…}` blocks
+     (this file supplies both). Everything else keeps working because the legacy
+     variable names are aliased below.
+
+   THEMING:
+     - Light "field" theme is the default (Explore / Learn).
+     - Dark "terminal" theme applies via `.riskchain-app.operations` (the app's
+       existing operations toggle) OR `:root[data-rc-theme="terminal"]`.
+       Recommended: default Model & Live into terminal, Explore/Learn into field.
+
+   COLOR LAW (non-negotiable): color encodes CERTAINTY / SEVERITY, never
+   decoration. Use --rc-observed / --rc-modelled / --rc-inferred / --rc-demo /
+   --rc-severe for meaning; use --rc-accent only for interactive affordances.
+   ========================================================================== */
+
+:root {
+  /* --- Brand accent (interactive only) --- */
+  --rc-accent: #16d6be;              /* electric teal */
+  --rc-accent-2: #4fa8ff;            /* secondary interactive (links on light) */
+  --rc-accent-ink: #04201c;          /* text on accent fills */
+  --rc-accent-soft: color-mix(in srgb, var(--rc-accent) 15%, transparent);
+  --rc-accent-glow: 0 0 0 3px color-mix(in srgb, var(--rc-accent) 22%, transparent);
+
+  /* --- Certainty = color law --- */
+  --rc-observed: #35c77b;            /* observed / confirmed */
+  --rc-modelled: #4fa8ff;            /* modelled */
+  --rc-inferred: #b48cff;            /* AI-inferred */
+  --rc-demo:     #f6a94a;            /* demo / warning / unavailable */
+  --rc-severe:   #ff5b55;            /* severe / conflict */
+  --rc-neutral:  #7c8b97;
+
+  /* --- Light "field" theme (Explore / Learn) --- */
+  --rc-bg:        #f4f7f9;
+  --rc-surface:   #ffffff;
+  --rc-surface-2: #eef2f5;
+  --rc-text:      #0e1620;
+  --rc-muted:     #596b78;
+  --rc-line:      #dbe3e9;
+  --rc-elev: 0 10px 30px rgba(16, 32, 48, .12), 0 1px 3px rgba(16, 32, 48, .08);
+  --rc-scrim: rgba(16, 26, 34, .32);
+
+  /* --- Typography --- */
+  --rc-font-display: "Space Grotesk", "General Sans", var(--rc-font-sans);
+  --rc-font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --rc-font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+
+  /* --- Radius --- */
+  --rc-r-xs: 6px; --rc-r-sm: 9px; --rc-r-md: 12px; --rc-r-lg: 16px; --rc-r-pill: 999px;
+
+  /* --- Motion --- */
+  --rc-dur-fast: 120ms; --rc-dur: 160ms; --rc-dur-slow: 320ms;
+  --rc-ease: cubic-bezier(.2, .7, .2, 1);
+  --rc-ease-out: cubic-bezier(.16, 1, .3, 1);
+
+  color-scheme: light;
+
+  /* ---- Legacy aliases: keep every existing component working ---- */
+  --bg: var(--rc-bg);
+  --surface: var(--rc-surface);
+  --surface-2: var(--rc-surface-2);
+  --text: var(--rc-text);
+  --muted: var(--rc-muted);
+  --line: var(--rc-line);
+  --blue: var(--rc-accent-2);        /* keep familiar blue for links on light */
+  --blue-dark: color-mix(in srgb, var(--rc-accent-2) 78%, black);
+  --green: var(--rc-observed);
+  --amber: var(--rc-demo);
+  --red: var(--rc-severe);
+  --purple: var(--rc-inferred);
+  --shadow: var(--rc-elev);
+}
+
+/* --- Dark "terminal" theme (Model / Live; app's operations toggle) --- */
+.riskchain-app.operations,
+:root[data-rc-theme="terminal"] {
+  --rc-bg:        #0b0f14;
+  --rc-surface:   #131a21;
+  --rc-surface-2: #1a232c;
+  --rc-text:      #e8f0f4;
+  --rc-muted:     #93a4b0;
+  --rc-line:      #223039;
+  --rc-elev: 0 18px 48px rgba(0, 0, 0, .55), 0 2px 10px rgba(0, 0, 0, .4);
+  --rc-scrim: rgba(0, 0, 0, .5);
+  color-scheme: dark;
+
+  /* On dark, the teal accent is the primary interactive color. */
+  --blue: var(--rc-accent);
+  --blue-dark: color-mix(in srgb, var(--rc-accent) 82%, black);
+  --bg: var(--rc-bg);
+  --surface: var(--rc-surface);
+  --surface-2: var(--rc-surface-2);
+  --text: var(--rc-text);
+  --muted: var(--rc-muted);
+  --line: var(--rc-line);
+  --shadow: var(--rc-elev);
+}
+
+/* =============================================================================
+   Base type — display headings, tabular-mono numbers
+   ========================================================================== */
+.riskchain-app h1, .riskchain-app h2, .riskchain-app h3,
+.rc-display { font-family: var(--rc-font-display); letter-spacing: -.02em; }
+
+/* Every figure should read like a financial instrument. */
+.rc-num, .result-hero strong, .result-grid strong, .aal-card strong,
+.analytics-chart text, .sliderValue strong {
+  font-family: var(--rc-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+/* =============================================================================
+   Utilities — certainty badges, accent, glow, count-up hook
+   ========================================================================== */
+.rc-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  border-radius: var(--rc-r-pill); padding: 3px 9px;
+  font-size: 10px; font-weight: 700; letter-spacing: .02em;
+  border: 1px solid transparent;
+}
+.rc-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.rc-chip--observed { color: var(--rc-observed); background: color-mix(in srgb, var(--rc-observed) 13%, transparent); }
+.rc-chip--modelled { color: var(--rc-modelled); background: color-mix(in srgb, var(--rc-modelled) 13%, transparent); }
+.rc-chip--inferred { color: var(--rc-inferred); background: color-mix(in srgb, var(--rc-inferred) 13%, transparent); }
+.rc-chip--demo     { color: var(--rc-demo);     background: color-mix(in srgb, var(--rc-demo) 14%, transparent); }
+.rc-chip--severe   { color: var(--rc-severe);   background: color-mix(in srgb, var(--rc-severe) 14%, transparent); }
+.rc-chip--neutral  { color: var(--rc-neutral);  background: color-mix(in srgb, var(--rc-neutral) 14%, transparent); }
+
+.rc-accent { color: var(--rc-accent); }
+.rc-focusable:focus-visible { outline: none; box-shadow: var(--rc-accent-glow); }
+.rc-hairline { border: 1px solid var(--rc-line); }
+.rc-elevated { border: 1px solid var(--rc-line); border-radius: var(--rc-r-lg); background: var(--rc-surface); box-shadow: var(--rc-elev); }
+.rc-glass { background: color-mix(in srgb, var(--rc-surface) 88%, transparent); backdrop-filter: blur(14px); }
+
+/* Consistent transitions for the whole app. */
+.riskchain-app button, .riskchain-app a,
+.riskchain-app input, .riskchain-app select,
+.nav-tabs button, .status-badge, .floating-card {
+  transition: background-color var(--rc-dur) var(--rc-ease),
+              border-color var(--rc-dur) var(--rc-ease),
+              color var(--rc-dur) var(--rc-ease),
+              box-shadow var(--rc-dur) var(--rc-ease),
+              transform var(--rc-dur-fast) var(--rc-ease);
+}
+
+/* Loss-reveal shimmer (add .rc-reveal to the hero on run completion). */
+@keyframes rc-shimmer {
+  0% { background-position: -160% 0; }
+  100% { background-position: 260% 0; }
+}
+.rc-reveal {
+  background-image: linear-gradient(100deg, transparent 20%,
+    color-mix(in srgb, var(--rc-accent) 26%, transparent) 45%, transparent 70%);
+  background-size: 220% 100%;
+  background-repeat: no-repeat;
+  animation: rc-shimmer var(--rc-dur-slow) var(--rc-ease-out) 1;
+  -webkit-background-clip: text; background-clip: text;
+}
+
+/* Live pulse for real-event markers / status dots. */
+@keyframes rc-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--rc-severe) 55%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 10px transparent; }
+}
+.rc-pulse { animation: rc-pulse 2s var(--rc-ease-out) infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .riskchain-app *, .rc-reveal, .rc-pulse { animation: none !important; transition: none !important; }
+}
